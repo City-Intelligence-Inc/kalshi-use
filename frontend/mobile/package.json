@@ -6,7 +6,8 @@
     "start": "npx expo start",
     "ios": "npx expo run:ios",
     "android": "npx expo run:android",
-    "web": "npx expo start --web"
+    "web": "npx expo start --web",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
@@ -20,9 +21,11 @@
     "expo-linking": "~7.0.0",
     "expo-notifications": "~0.29.14",
     "expo-router": "~4.0.0",
+    "expo-share-intent": "^3.2.3",
     "expo-status-bar": "~2.0.0",
     "expo-web-browser": "~14.0.0",
     "nativewind": "^4.0",
+    "patch-package": "^8.0.1",
     "react": "18.3.1",
     "react-native": "0.76.9",
     "react-native-paper": "^5.15.0",

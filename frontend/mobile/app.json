@@ -50,6 +50,15 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to analyze screenshots.",
           "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to capture screenshots."
         }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsImageWithMaxCount": 1
+          },
+          "androidIntentFilters": ["image/*"]
+        }
       ]
     ],
     "experiments": {

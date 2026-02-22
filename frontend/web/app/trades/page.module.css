@@ -1,0 +1,38 @@
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.loadingText {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 40px 0;
+}
+
+.empty {
+  text-align: center;
+  padding: 80px 0;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  color: var(--border);
+  margin-bottom: 16px;
+}
+
+.emptyTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.emptyDesc {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}

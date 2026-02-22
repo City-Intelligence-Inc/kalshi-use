@@ -1,0 +1,12 @@
+{
+  "name": "kalshi-use",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "mobile": "cd frontend/mobile && npx expo start",
+    "web": "cd frontend/web && npx next dev",
+    "mobile:ios": "cd frontend/mobile && npx expo run:ios",
+    "mobile:android": "cd frontend/mobile && npx expo run:android",
+    "web:build": "cd frontend/web && npx next build"
+  }
+}

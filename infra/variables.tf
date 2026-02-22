@@ -9,3 +9,9 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
+
+variable "app_name" {
+  description = "Application name used for resource naming"
+  type        = string
+  default     = "kalshi-use"
+}

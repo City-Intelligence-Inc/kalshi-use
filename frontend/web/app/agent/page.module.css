@@ -1,0 +1,74 @@
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.toggle {
+  display: flex;
+  background: var(--bg-card);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.toggleOption {
+  flex: 1;
+  padding: 14px;
+  text-align: center;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+
+.toggleActive {
+  background: var(--accent);
+  color: #fff;
+}
+
+.strategyInput {
+  min-height: 140px;
+  resize: vertical;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 24px;
+  line-height: 1.4;
+}
+
+.statusCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.statusLabel {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.badgeActive {
+  background: #065f46;
+}
+
+.badgeInactive {
+  background: var(--red-bg);
+}

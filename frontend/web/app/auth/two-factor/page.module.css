@@ -1,0 +1,47 @@
+.description {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+  margin-bottom: 32px;
+}
+
+.option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 12px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.option:hover {
+  border-color: var(--text-muted);
+}
+
+.selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.optionTitle {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.optionDesc {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.skip {
+  display: block;
+  margin: 16px auto 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+}

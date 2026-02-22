@@ -36,17 +36,19 @@ table = dynamodb.Table(TABLE_NAME)
 snapshots_table = dynamodb.Table(SNAPSHOTS_TABLE_NAME)
 predictions_table = dynamodb.Table(PREDICTIONS_TABLE_NAME)
 
-# S3 client — may fail in local dev without credentials
+# S3 client — always attempt S3 in production (App Runner provides IAM role).
+# Fall back to local only when no AWS credentials are configured at all.
+s3_client = boto3.client("s3")
 try:
-    s3_client = boto3.client("s3")
-    # Quick check that bucket is accessible
-    s3_client.head_bucket(Bucket=S3_BUCKET_NAME)
-    _s3_available = True
-    logger.info("S3 bucket %s is accessible", S3_BUCKET_NAME)
+    _creds = boto3.Session().get_credentials()
+    _s3_available = _creds is not None and _creds.access_key is not None
 except Exception:
     _s3_available = False
-    s3_client = boto3.client("s3")  # keep reference for type hints
-    logger.warning("S3 unavailable — falling back to local storage at %s", LOCAL_IMAGE_DIR)
+
+if _s3_available:
+    logger.info("S3 enabled — bucket: %s", S3_BUCKET_NAME)
+else:
+    logger.warning("No AWS credentials — falling back to local storage at %s", LOCAL_IMAGE_DIR)
 
 
 def put_trade(trade: dict) -> dict:

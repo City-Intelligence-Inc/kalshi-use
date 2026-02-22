@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { getModels } from "../../lib/api";
+import { getModels, getEndpoint } from "../../lib/api";
 import { ModelInfo } from "../../lib/types";
 
 interface Props {
@@ -21,16 +21,20 @@ export default function ModelPicker({ selectedModel, onSelect }: Props) {
   const [visible, setVisible] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const selected = models.find((m) => m.name === selectedModel);
 
   const loadModels = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await getModels();
       setModels(data);
-    } catch {
-      // silently fail, keep current selection
+    } catch (e: any) {
+      const ep = await getEndpoint();
+      console.warn(`Failed to load models (${ep}):`, e.message);
+      setError(`${ep}: ${e.message ?? "Failed to load models"}`);
     } finally {
       setLoading(false);
     }
@@ -42,7 +46,7 @@ export default function ModelPicker({ selectedModel, onSelect }: Props) {
 
   return (
     <>
-      <Pressable style={styles.badge} onPress={() => setVisible(true)}>
+      <Pressable style={styles.badge} onPress={() => { loadModels(); setVisible(true); }}>
         <Ionicons name="cube-outline" size={14} color="#A78BFA" />
         <Text style={styles.badgeText} numberOfLines={1}>
           {selected?.display_name ?? selectedModel}
@@ -63,6 +67,24 @@ export default function ModelPicker({ selectedModel, onSelect }: Props) {
 
             {loading ? (
               <ActivityIndicator color="#6366F1" style={{ marginTop: 20 }} />
+            ) : error ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="cloud-offline-outline" size={32} color="#64748B" />
+                <Text style={styles.errorText}>Can't reach server</Text>
+                <Text style={styles.errorDetail}>{error}</Text>
+                <Pressable style={styles.retryButton} onPress={loadModels}>
+                  <Ionicons name="refresh" size={16} color="#FFFFFF" />
+                  <Text style={styles.retryText}>Retry</Text>
+                </Pressable>
+              </View>
+            ) : models.length === 0 ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>No models available</Text>
+                <Pressable style={styles.retryButton} onPress={loadModels}>
+                  <Ionicons name="refresh" size={16} color="#FFFFFF" />
+                  <Text style={styles.retryText}>Retry</Text>
+                </Pressable>
+              </View>
             ) : (
               <FlatList
                 data={models}
@@ -176,5 +198,36 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     marginLeft: 12,
+  },
+  errorBox: {
+    alignItems: "center",
+    paddingVertical: 24,
+    gap: 8,
+  },
+  errorText: {
+    color: "#94A3B8",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  errorDetail: {
+    color: "#475569",
+    fontSize: 12,
+    textAlign: "center",
+    paddingHorizontal: 20,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#6366F1",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  retryText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

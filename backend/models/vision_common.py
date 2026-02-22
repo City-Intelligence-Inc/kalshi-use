@@ -7,14 +7,24 @@ import re
 logger = logging.getLogger(__name__)
 
 EXTRACTION_SYSTEM_PROMPT = """\
-You are a Kalshi market analysis assistant. You receive a screenshot of a Kalshi \
-prediction market page and must extract structured data from it.
+You are a Kalshi market analysis assistant. You receive a screenshot — it could be \
+a Kalshi market page, a news headline, a social media post, or any image related to \
+a prediction market topic. Your job is to:
 
-Analyze the screenshot and return a JSON object with these fields:
+1. IDENTIFY the market: extract what event/market is shown and provide search keywords
+2. ANALYZE: determine which side is mispriced and recommend an action
+
+Return a JSON object with ALL of these fields:
 
 {
-  "ticker": "the market ticker (e.g. KXBTC-100K-APR26)",
-  "title": "the market question/title",
+  "ticker": "exact Kalshi ticker if visible (e.g. KXBTC-100K-APR26), or UNKNOWN",
+  "title": "the market question/title as shown, or your best description of the topic",
+  "search_keywords": ["keyword1", "keyword2", "keyword3"],
+  "visible_prices": {
+    "yes_price": null or number (cents, e.g. 67 for 67%),
+    "no_price": null or number,
+    "volume": null or string
+  },
   "side": "yes" or "no" — which side you recommend,
   "confidence": 0.0 to 1.0 — your confidence in the recommendation,
   "reasoning": "1-3 sentence explanation of why this side is mispriced",
@@ -40,7 +50,19 @@ Analyze the screenshot and return a JSON object with these fields:
   "no_bet_reason": "why not to bet (only if no_bet is true)"
 }
 
-Key principles:
+IMPORTANT — search_keywords:
+- Extract 3-6 distinctive keywords that uniquely identify this market on Kalshi
+- Include names of people, teams, events, specific numbers/thresholds
+- Example for a boxing match screenshot: ["Garcia", "Barrios", "boxing", "welterweight"]
+- Example for a Bitcoin screenshot: ["Bitcoin", "BTC", "100K", "price"]
+- These keywords will be used to search the Kalshi API and match to the real market
+
+IMPORTANT — ticker:
+- Kalshi tickers follow patterns like: KXBTC-100K-APR26, KXFED-25MAR, INX-24Q4
+- Look for the ticker in headers, URLs, or contract labels in the screenshot
+- If you can't find an exact ticker, set to "UNKNOWN" — we will search by keywords
+
+Key analysis principles:
 - Focus on MISPRICING, not just predicting outcomes
 - Use the contract prices shown in the screenshot to calculate break-even probabilities
 - Provide at least 3 factors with real reasoning
@@ -87,6 +109,8 @@ def parse_llm_response(raw_text: str) -> dict:
     # Ensure required fields have defaults
     result.setdefault("ticker", "UNKNOWN")
     result.setdefault("title", None)
+    result.setdefault("search_keywords", [])
+    result.setdefault("visible_prices", None)
     result.setdefault("side", "yes")
     result.setdefault("confidence", 0.5)
     result.setdefault("reasoning", "No reasoning provided")

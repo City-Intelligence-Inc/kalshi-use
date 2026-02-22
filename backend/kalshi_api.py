@@ -65,6 +65,91 @@ def fetch_event(event_ticker: str) -> dict | None:
         return None
 
 
+def fetch_events(status: str = "open", limit: int = 200) -> list[dict]:
+    """GET /events → list of events, optionally filtered by status."""
+    try:
+        with _client() as c:
+            params = {"limit": limit, "with_nested_markets": True}
+            if status:
+                params["status"] = status
+            r = c.get("/events", params=params)
+            r.raise_for_status()
+            return r.json().get("events", [])
+    except httpx.HTTPError:
+        logger.exception("Kalshi events fetch failed")
+        return []
+
+
+def _score_title(event_title: str, keywords: list[str]) -> int:
+    """Score how well an event title matches a set of keywords."""
+    title_lower = event_title.lower()
+    return sum(1 for kw in keywords if kw in title_lower)
+
+
+def match_market(
+    extracted_ticker: str | None,
+    extracted_title: str | None,
+    search_keywords: list[str] | None = None,
+) -> dict | None:
+    """Try to match extracted image info to a real Kalshi market.
+
+    Strategy:
+      1. Direct ticker lookup (fast path)
+      2. Keyword search through active events (fallback)
+
+    Returns the matched market dict or None.
+    """
+    # 1. Direct ticker lookup
+    if extracted_ticker and extracted_ticker.upper() != "UNKNOWN":
+        market = fetch_market(extracted_ticker)
+        if market:
+            return market
+
+    # 2. Build keyword list from title + explicit keywords
+    keywords: list[str] = []
+    if search_keywords:
+        keywords.extend(kw.lower() for kw in search_keywords if len(kw) > 2)
+    if extracted_title:
+        keywords.extend(
+            w.lower() for w in extracted_title.split()
+            if len(w) > 2 and w.lower() not in ("the", "will", "and", "for", "who", "what")
+        )
+
+    if not keywords:
+        return None
+
+    # Fetch active events and score by keyword overlap
+    events = fetch_events(status="open", limit=200)
+    best_event = None
+    best_score = 0
+
+    for event in events:
+        event_title = event.get("title", "")
+        score = _score_title(event_title, keywords)
+        if score > best_score:
+            best_score = score
+            best_event = event
+
+    if not best_event or best_score < 2:
+        return None
+
+    # Return the first active market from the best-matching event
+    markets = best_event.get("markets", [])
+    if not markets:
+        # Event found but no nested markets — fetch via event_ticker
+        event_ticker = best_event.get("event_ticker")
+        if event_ticker:
+            event_detail = fetch_event(event_ticker)
+            if event_detail:
+                markets = event_detail.get("markets", [])
+
+    for m in markets:
+        if m.get("status") in ("active", "open", "live"):
+            return m
+
+    return markets[0] if markets else None
+
+
 def enrich_prediction(ticker: str) -> dict:
     """Fetch live market data for a ticker. Never raises — always returns a dict.
 

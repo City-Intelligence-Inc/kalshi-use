@@ -24,8 +24,9 @@ from backend.db import (
     update_trade,
     upload_image,
 )
-from backend.kalshi_api import enrich_prediction
+from backend.kalshi_api import enrich_prediction, match_market
 from backend.models import get_model, list_models
+from backend.models.custom import create_custom_model, delete_custom_model
 from backend.notifications import send_push
 from backend.prediction_log import log_prediction
 from backend.pydantic_models import (
@@ -33,6 +34,7 @@ from backend.pydantic_models import (
     InputResponse,
     MarketSnapshot,
     MarketSnapshotCreate,
+    ModelCreate,
     ModelInfo,
     OutputRequest,
     Prediction,
@@ -142,6 +144,57 @@ def get_model_endpoint(name: str):
     }
 
 
+@router.post("/models", response_model=ModelInfo)
+def create_model_endpoint(model: ModelCreate):
+    """Create a custom model backed by an existing runner."""
+    from backend.models.base import MODEL_REGISTRY
+
+    # Don't allow overwriting hardcoded models
+    if model.name in MODEL_REGISTRY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot overwrite built-in model '{model.name}'",
+        )
+
+    valid_runners = ["openrouter", "gemini", "random"]
+    if model.backing_runner not in valid_runners:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid backing_runner. Choose from: {valid_runners}",
+        )
+
+    config = model.model_dump()
+    config["status"] = "available"
+    create_custom_model(config)
+
+    return {
+        "name": config["name"],
+        "display_name": config["display_name"],
+        "description": config.get("description", ""),
+        "status": "available",
+        "input_type": config["input_type"],
+        "output_type": config["output_type"],
+        "custom": True,
+    }
+
+
+@router.delete("/models/{name}")
+def delete_model_endpoint(name: str):
+    """Delete a custom model. Cannot delete built-in models."""
+    from backend.models.base import MODEL_REGISTRY
+
+    if name in MODEL_REGISTRY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete built-in model '{name}'",
+        )
+
+    if not delete_custom_model(name):
+        raise HTTPException(status_code=404, detail=f"Model '{name}' not found")
+
+    return {"detail": f"Model '{name}' deleted"}
+
+
 # ── Predictions: Pipeline ──
 
 
@@ -166,9 +219,27 @@ async def _run_model_background(
         loop = asyncio.get_event_loop()
         recommendation = await loop.run_in_executor(None, runner.run, image_key, context)
 
+        # Match extracted ticker to a real Kalshi market
+        ticker = recommendation.get("ticker")
+        title = recommendation.get("title")
+        search_kw = recommendation.get("search_keywords")
+        try:
+            matched = await loop.run_in_executor(
+                None, match_market, ticker, title, search_kw,
+            )
+            if matched:
+                real_ticker = matched.get("ticker")
+                if real_ticker and real_ticker != ticker:
+                    recommendation["original_ticker"] = ticker
+                    recommendation["ticker"] = real_ticker
+                if matched.get("title") and not recommendation.get("title"):
+                    recommendation["title"] = matched.get("title")
+                ticker = recommendation["ticker"]
+        except Exception:
+            logger.exception("Market matching failed for %s", prediction_id)
+
         # Enrich with live Kalshi market data
         market_data = None
-        ticker = recommendation.get("ticker")
         if ticker and ticker.upper() != "UNKNOWN":
             try:
                 market_data = await loop.run_in_executor(None, enrich_prediction, ticker)
@@ -298,9 +369,25 @@ async def predict_output(req: OutputRequest):
     # Run model
     recommendation = runner.run(prediction["image_key"], prediction.get("context"))
 
+    # Match extracted ticker to a real Kalshi market
+    ticker = recommendation.get("ticker")
+    title = recommendation.get("title")
+    search_kw = recommendation.get("search_keywords")
+    try:
+        matched = match_market(ticker, title, search_kw)
+        if matched:
+            real_ticker = matched.get("ticker")
+            if real_ticker and real_ticker != ticker:
+                recommendation["original_ticker"] = ticker
+                recommendation["ticker"] = real_ticker
+            if matched.get("title") and not recommendation.get("title"):
+                recommendation["title"] = matched.get("title")
+            ticker = recommendation["ticker"]
+    except Exception:
+        logger.exception("Market matching failed for %s", req.prediction_id)
+
     # Enrich with live Kalshi market data
     market_data = None
-    ticker = recommendation.get("ticker")
     if ticker and ticker.upper() != "UNKNOWN":
         try:
             market_data = enrich_prediction(ticker)

@@ -169,6 +169,19 @@ class ModelInfo(BaseModel):
     status: str  # "available", "coming_soon"
     input_type: str  # "image", "text", "image+text"
     output_type: str  # "text", "prediction", "structured"
+    custom: Optional[bool] = None
+
+
+class ModelCreate(BaseModel):
+    """User-created custom model config."""
+    name: str                               # slug, e.g. "btc-specialist"
+    display_name: str                       # e.g. "BTC Specialist"
+    description: Optional[str] = ""
+    backing_runner: str = "random"          # "openrouter", "gemini", "random"
+    backing_llm: Optional[str] = None       # e.g. "anthropic/claude-3.5-sonnet"
+    custom_prompt: Optional[str] = None     # override system prompt
+    input_type: str = "image"
+    output_type: str = "prediction"
 
 
 # ── Pipeline request/response models ──

@@ -21,8 +21,10 @@ import {
   getPredictionLog,
   getModels,
   submitIdea,
+  createModel,
+  deleteModel,
 } from "../../lib/api";
-import { Prediction, ModelInfo, IdeaCreate } from "../../lib/types";
+import { Prediction, ModelInfo, IdeaCreate, ModelCreate } from "../../lib/types";
 
 type Tab = "predictions" | "models";
 
@@ -77,14 +79,31 @@ function PredictionCard({ item, onPress }: { item: Prediction; onPress: () => vo
   );
 }
 
-function ModelCard({ item }: { item: ModelInfo }) {
+function ModelCard({
+  item,
+  onDelete,
+}: {
+  item: ModelInfo;
+  onDelete?: () => void;
+}) {
   return (
     <View style={styles.card}>
-      <View style={styles.modelIcon}>
-        <Ionicons name="cube-outline" size={24} color="#A78BFA" />
+      <View style={[styles.modelIcon, item.custom && styles.modelIconCustom]}>
+        <Ionicons
+          name={item.custom ? "construct-outline" : "cube-outline"}
+          size={24}
+          color={item.custom ? "#EAB308" : "#A78BFA"}
+        />
       </View>
       <View style={styles.cardContent}>
-        <Text style={styles.cardTicker}>{item.display_name}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={styles.cardTicker}>{item.display_name}</Text>
+          {item.custom && (
+            <View style={styles.customBadge}>
+              <Text style={styles.customBadgeText}>custom</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.cardTitle} numberOfLines={2}>
           {item.description}
         </Text>
@@ -92,12 +111,30 @@ function ModelCard({ item }: { item: ModelInfo }) {
           {item.input_type} → {item.output_type}
         </Text>
       </View>
-      <View
-        style={[
-          styles.statusDot,
-          { backgroundColor: item.status === "available" ? "#22C55E" : "#EF4444" },
-        ]}
-      />
+      {item.custom && onDelete ? (
+        <Pressable
+          hitSlop={12}
+          onPress={() => {
+            Alert.alert(
+              "Delete Model",
+              `Remove "${item.display_name}"?`,
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Delete", style: "destructive", onPress: onDelete },
+              ]
+            );
+          }}
+        >
+          <Ionicons name="trash-outline" size={18} color="#EF4444" />
+        </Pressable>
+      ) : (
+        <View
+          style={[
+            styles.statusDot,
+            { backgroundColor: item.status === "available" ? "#22C55E" : "#EF4444" },
+          ]}
+        />
+      )}
     </View>
   );
 }
@@ -263,34 +300,18 @@ function IdeaForm({
           <Text style={styles.formLabel}>SIDE *</Text>
           <View style={styles.sideToggle}>
             <Pressable
-              style={[
-                styles.sideOption,
-                side === "yes" && styles.sideOptionYesActive,
-              ]}
+              style={[styles.sideOption, side === "yes" && styles.sideOptionYesActive]}
               onPress={() => setSide("yes")}
             >
-              <Text
-                style={[
-                  styles.sideOptionText,
-                  side === "yes" && styles.sideOptionTextActive,
-                ]}
-              >
+              <Text style={[styles.sideOptionText, side === "yes" && styles.sideOptionTextActive]}>
                 YES
               </Text>
             </Pressable>
             <Pressable
-              style={[
-                styles.sideOption,
-                side === "no" && styles.sideOptionNoActive,
-              ]}
+              style={[styles.sideOption, side === "no" && styles.sideOptionNoActive]}
               onPress={() => setSide("no")}
             >
-              <Text
-                style={[
-                  styles.sideOptionText,
-                  side === "no" && styles.sideOptionTextActive,
-                ]}
-              >
+              <Text style={[styles.sideOptionText, side === "no" && styles.sideOptionTextActive]}>
                 NO
               </Text>
             </Pressable>
@@ -336,7 +357,6 @@ function IdeaForm({
             </Pressable>
           </View>
 
-          {/* Existing factors */}
           {factors.map((f, idx) => (
             <View key={idx} style={styles.factorChip}>
               <View style={styles.factorChipLeft}>
@@ -384,7 +404,6 @@ function IdeaForm({
             </View>
           ))}
 
-          {/* Factor form (inline) */}
           {showFactorForm && (
             <View style={styles.factorFormBox}>
               <TextInput
@@ -413,36 +432,16 @@ function IdeaForm({
                   <Text style={styles.factorToggleLabel}>Direction</Text>
                   <View style={styles.sideToggle}>
                     <Pressable
-                      style={[
-                        styles.miniOption,
-                        fDir === "favors_yes" && { backgroundColor: "rgba(34,197,94,0.2)" },
-                      ]}
+                      style={[styles.miniOption, fDir === "favors_yes" && { backgroundColor: "rgba(34,197,94,0.2)" }]}
                       onPress={() => setFDir("favors_yes")}
                     >
-                      <Text
-                        style={[
-                          styles.miniOptionText,
-                          fDir === "favors_yes" && { color: "#22C55E" },
-                        ]}
-                      >
-                        YES
-                      </Text>
+                      <Text style={[styles.miniOptionText, fDir === "favors_yes" && { color: "#22C55E" }]}>YES</Text>
                     </Pressable>
                     <Pressable
-                      style={[
-                        styles.miniOption,
-                        fDir === "favors_no" && { backgroundColor: "rgba(239,68,68,0.2)" },
-                      ]}
+                      style={[styles.miniOption, fDir === "favors_no" && { backgroundColor: "rgba(239,68,68,0.2)" }]}
                       onPress={() => setFDir("favors_no")}
                     >
-                      <Text
-                        style={[
-                          styles.miniOptionText,
-                          fDir === "favors_no" && { color: "#EF4444" },
-                        ]}
-                      >
-                        NO
-                      </Text>
+                      <Text style={[styles.miniOptionText, fDir === "favors_no" && { color: "#EF4444" }]}>NO</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -456,11 +455,7 @@ function IdeaForm({
                           styles.miniOption,
                           fMag === m && {
                             backgroundColor:
-                              m === "high"
-                                ? "rgba(239,68,68,0.2)"
-                                : m === "medium"
-                                ? "rgba(234,179,8,0.2)"
-                                : "rgba(100,116,139,0.2)",
+                              m === "high" ? "rgba(239,68,68,0.2)" : m === "medium" ? "rgba(234,179,8,0.2)" : "rgba(100,116,139,0.2)",
                           },
                         ]}
                         onPress={() => setFMag(m)}
@@ -468,14 +463,7 @@ function IdeaForm({
                         <Text
                           style={[
                             styles.miniOptionText,
-                            fMag === m && {
-                              color:
-                                m === "high"
-                                  ? "#EF4444"
-                                  : m === "medium"
-                                  ? "#EAB308"
-                                  : "#94A3B8",
-                            },
+                            fMag === m && { color: m === "high" ? "#EF4444" : m === "medium" ? "#EAB308" : "#94A3B8" },
                           ]}
                         >
                           {m.charAt(0).toUpperCase() + m.slice(1)}
@@ -521,6 +509,212 @@ function IdeaForm({
   );
 }
 
+// ── New Model Form ──
+
+const BACKING_RUNNERS = [
+  { value: "openrouter" as const, label: "OpenRouter", desc: "Claude, GPT-4o, etc. via OpenRouter API" },
+  { value: "gemini" as const, label: "Gemini", desc: "Google Gemini 2.5 Flash" },
+  { value: "random" as const, label: "Random (dev)", desc: "Random stub for testing" },
+];
+
+function ModelForm({
+  visible,
+  onClose,
+  onSubmitted,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmitted: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [description, setDescription] = useState("");
+  const [backingRunner, setBackingRunner] = useState<"openrouter" | "gemini" | "random">("openrouter");
+  const [backingLlm, setBackingLlm] = useState("");
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const resetForm = () => {
+    setName("");
+    setDisplayName("");
+    setDescription("");
+    setBackingRunner("openrouter");
+    setBackingLlm("");
+    setCustomPrompt("");
+  };
+
+  // Auto-generate slug from display name
+  const handleDisplayNameChange = (text: string) => {
+    setDisplayName(text);
+    if (!name || name === slugify(displayName)) {
+      setName(slugify(text));
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!name.trim()) {
+      Alert.alert("Missing field", "Model name (slug) is required");
+      return;
+    }
+    if (!displayName.trim()) {
+      Alert.alert("Missing field", "Display name is required");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const model: ModelCreate = {
+        name: name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_"),
+        display_name: displayName.trim(),
+        description: description.trim() || undefined,
+        backing_runner: backingRunner,
+        backing_llm: backingLlm.trim() || undefined,
+        custom_prompt: customPrompt.trim() || undefined,
+      };
+      await createModel(model);
+      resetForm();
+      onSubmitted();
+      onClose();
+    } catch (e: any) {
+      Alert.alert("Error", e.message ?? "Failed to create model");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <KeyboardAvoidingView
+        style={styles.formContainer}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        {/* Header */}
+        <View style={styles.formHeader}>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Ionicons name="close" size={24} color="#94A3B8" />
+          </Pressable>
+          <Text style={styles.formHeaderTitle}>New Model</Text>
+          <Pressable
+            style={[styles.submitButton, submitting && { opacity: 0.5 }]}
+            onPress={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.submitButtonText}>Create</Text>
+            )}
+          </Pressable>
+        </View>
+
+        <ScrollView
+          style={styles.formScroll}
+          contentContainerStyle={styles.formContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Display Name */}
+          <Text style={styles.formLabel}>DISPLAY NAME *</Text>
+          <TextInput
+            style={styles.formInput}
+            placeholder="e.g. BTC Specialist"
+            placeholderTextColor="#475569"
+            value={displayName}
+            onChangeText={handleDisplayNameChange}
+          />
+
+          {/* Slug */}
+          <Text style={styles.formLabel}>MODEL SLUG *</Text>
+          <TextInput
+            style={styles.formInput}
+            placeholder="e.g. btc-specialist"
+            placeholderTextColor="#475569"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={styles.formHint}>Unique identifier used in API calls</Text>
+
+          {/* Description */}
+          <Text style={styles.formLabel}>DESCRIPTION</Text>
+          <TextInput
+            style={[styles.formInput, { minHeight: 60, textAlignVertical: "top" }]}
+            placeholder="What does this model specialize in?"
+            placeholderTextColor="#475569"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+          />
+
+          {/* Backing Runner */}
+          <Text style={styles.formLabel}>BACKING RUNNER *</Text>
+          <Text style={styles.formHint}>Which LLM provider powers this model</Text>
+          {BACKING_RUNNERS.map((r) => (
+            <Pressable
+              key={r.value}
+              style={[
+                styles.runnerOption,
+                backingRunner === r.value && styles.runnerOptionActive,
+              ]}
+              onPress={() => setBackingRunner(r.value)}
+            >
+              <View style={styles.runnerRadio}>
+                {backingRunner === r.value && <View style={styles.runnerRadioDot} />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.runnerLabel, backingRunner === r.value && { color: "#FFFFFF" }]}>
+                  {r.label}
+                </Text>
+                <Text style={styles.runnerDesc}>{r.desc}</Text>
+              </View>
+            </Pressable>
+          ))}
+
+          {/* Backing LLM (for OpenRouter) */}
+          {backingRunner === "openrouter" && (
+            <>
+              <Text style={styles.formLabel}>BACKING LLM</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="e.g. anthropic/claude-3.5-sonnet (default: claude-3.5-haiku)"
+                placeholderTextColor="#475569"
+                value={backingLlm}
+                onChangeText={setBackingLlm}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text style={styles.formHint}>OpenRouter model ID. Leave blank for default.</Text>
+            </>
+          )}
+
+          {/* Custom Prompt */}
+          <Text style={styles.formLabel}>CUSTOM SYSTEM PROMPT</Text>
+          <TextInput
+            style={[styles.formInput, styles.formInputMulti]}
+            placeholder="Override the default analysis prompt. Tell the model what to focus on, how to analyze, what factors matter most..."
+            placeholderTextColor="#475569"
+            value={customPrompt}
+            onChangeText={setCustomPrompt}
+            multiline
+          />
+          <Text style={styles.formHint}>Leave blank to use the default Kalshi analysis prompt</Text>
+
+          <View style={{ height: 60 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 40);
+}
+
 // ── Main ──
 
 export default function DataScreen() {
@@ -530,6 +724,7 @@ export default function DataScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [ideaFormVisible, setIdeaFormVisible] = useState(false);
+  const [modelFormVisible, setModelFormVisible] = useState(false);
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -557,6 +752,23 @@ export default function DataScreen() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchData();
+  };
+
+  const handleDeleteModel = async (name: string) => {
+    try {
+      await deleteModel(name);
+      handleRefresh();
+    } catch (e: any) {
+      Alert.alert("Error", e.message ?? "Failed to delete model");
+    }
+  };
+
+  const handleFabPress = () => {
+    if (tab === "models") {
+      setModelFormVisible(true);
+    } else {
+      setIdeaFormVisible(true);
+    }
   };
 
   return (
@@ -607,7 +819,12 @@ export default function DataScreen() {
         <FlatList
           data={models}
           keyExtractor={(item) => item.name}
-          renderItem={({ item }) => <ModelCard item={item} />}
+          renderItem={({ item }) => (
+            <ModelCard
+              item={item}
+              onDelete={item.custom ? () => handleDeleteModel(item.name) : undefined}
+            />
+          )}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -625,11 +842,8 @@ export default function DataScreen() {
         />
       )}
 
-      {/* FAB — New Idea */}
-      <Pressable
-        style={styles.fab}
-        onPress={() => setIdeaFormVisible(true)}
-      >
+      {/* FAB — context-aware */}
+      <Pressable style={styles.fab} onPress={handleFabPress}>
         <Ionicons name="add" size={28} color="#FFFFFF" />
       </Pressable>
 
@@ -641,6 +855,13 @@ export default function DataScreen() {
           setTab("predictions");
           handleRefresh();
         }}
+      />
+
+      {/* Model Form Modal */}
+      <ModelForm
+        visible={modelFormVisible}
+        onClose={() => setModelFormVisible(false)}
+        onSubmitted={handleRefresh}
       />
     </View>
   );
@@ -711,6 +932,21 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(167,139,250,0.15)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  modelIconCustom: {
+    backgroundColor: "rgba(234,179,8,0.12)",
+  },
+  customBadge: {
+    backgroundColor: "rgba(234,179,8,0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  customBadgeText: {
+    color: "#EAB308",
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
   cardContent: {
     flex: 1,
@@ -789,7 +1025,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
 
-  // ── Form ──
+  // ── Form (shared) ──
   formContainer: {
     flex: 1,
     backgroundColor: "#0B1120",
@@ -856,6 +1092,11 @@ const styles = StyleSheet.create({
     borderColor: "#334155",
     marginBottom: 8,
   },
+  formHint: {
+    color: "#475569",
+    fontSize: 11,
+    marginTop: 4,
+  },
 
   // ── Side toggle ──
   sideToggle: {
@@ -887,6 +1128,48 @@ const styles = StyleSheet.create({
   },
   sideOptionTextActive: {
     color: "#FFFFFF",
+  },
+
+  // ── Runner picker ──
+  runnerOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#1E293B",
+    borderRadius: 10,
+    padding: 14,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  runnerOptionActive: {
+    borderColor: "#6366F1",
+    backgroundColor: "rgba(99,102,241,0.08)",
+  },
+  runnerRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#475569",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  runnerRadioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#6366F1",
+  },
+  runnerLabel: {
+    color: "#CBD5E1",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  runnerDesc: {
+    color: "#64748B",
+    fontSize: 11,
+    marginTop: 2,
   },
 
   // ── Factor builder ──

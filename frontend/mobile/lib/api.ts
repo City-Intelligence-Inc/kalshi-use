@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { IdeaCreate, ModelInfo, Prediction, PredictionUpdate, Snapshot, TradeLog, TradeLogCreate } from "./types";
+import { IdeaCreate, ModelCreate, ModelInfo, Prediction, PredictionUpdate, Snapshot, TradeLog, TradeLogCreate } from "./types";
 
 const ENDPOINTS = {
   production: "https://cuxaxyzbcm.us-east-1.awsapprunner.com",
@@ -92,6 +92,17 @@ export async function getModels(): Promise<ModelInfo[]> {
 
 export async function getModelInfo(name: string): Promise<ModelInfo> {
   return request<ModelInfo>(`/models/${encodeURIComponent(name)}`);
+}
+
+export async function createModel(model: ModelCreate): Promise<ModelInfo> {
+  return request<ModelInfo>("/models", {
+    method: "POST",
+    body: JSON.stringify(model),
+  });
+}
+
+export async function deleteModel(name: string): Promise<void> {
+  return request(`/models/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
 // Prediction endpoints

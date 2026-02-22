@@ -157,6 +157,18 @@ export interface ModelInfo {
   status: string;
   input_type: string;
   output_type: string;
+  custom?: boolean;
+}
+
+export interface ModelCreate {
+  name: string;
+  display_name: string;
+  description?: string;
+  backing_runner: "openrouter" | "gemini" | "random";
+  backing_llm?: string;
+  custom_prompt?: string;
+  input_type?: string;
+  output_type?: string;
 }
 
 export interface AgentConfig {

@@ -28,18 +28,25 @@ class GeminiModel(ModelRunner):
 
         client = genai.Client(api_key=api_key)
 
+        logger.info("Fetching image from S3: %s", image_key)
         image_bytes = get_image_bytes(image_key)
+        logger.info("Image fetched: %d bytes", len(image_bytes))
+
+        # Detect mime type from key extension
+        ext = image_key.rsplit(".", 1)[-1].lower() if "." in image_key else "jpg"
+        mime_type = "image/png" if ext == "png" else "image/jpeg"
 
         prompt = "Analyze this Kalshi market screenshot and return the structured JSON."
         if context:
             prompt += f"\n\nAdditional context: {context}"
 
+        logger.info("Calling Gemini API (model=gemini-2.5-flash, mime=%s)", mime_type)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[
                 genai.types.Content(
                     parts=[
-                        genai.types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                        genai.types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
                         genai.types.Part.from_text(text=prompt),
                     ]
                 ),
@@ -52,6 +59,6 @@ class GeminiModel(ModelRunner):
         )
 
         raw_text = response.text
-        logger.info("Gemini response: %s", raw_text[:200])
+        logger.info("Gemini response: %s", raw_text[:500])
 
         return parse_llm_response(raw_text)

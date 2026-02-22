@@ -297,11 +297,12 @@ async def _run_model_background(
                 f"{ticker} — {side} ({confidence}%)",
                 data={"prediction_id": prediction_id},
             )
-    except Exception:
-        logger.exception("Background model run failed for prediction %s", prediction_id)
+    except Exception as exc:
+        logger.exception("Background model run failed for prediction %s: %s", prediction_id, exc)
         failed_at = datetime.now(timezone.utc).isoformat()
         update_prediction(prediction_id, {
             "status": "failed",
+            "error_message": str(exc)[:500],
             "completed_at": failed_at,
         })
         try:

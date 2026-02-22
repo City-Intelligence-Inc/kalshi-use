@@ -14,6 +14,18 @@ class TradeLogCreate(BaseModel):
     status: str = "pending"  # "pending", "filled", "canceled"
 
 
+class TradeLogUpdate(BaseModel):
+    agent_id: Optional[str] = None
+    ticker: Optional[str] = None
+    side: Optional[str] = None
+    action: Optional[str] = None
+    quantity: Optional[int] = None
+    price: Optional[float] = None
+    total_cost: Optional[float] = None
+    status: Optional[str] = None
+    filled_at: Optional[str] = None
+
+
 class TradeLog(TradeLogCreate):
     trade_id: str
     created_at: str

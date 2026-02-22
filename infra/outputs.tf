@@ -22,6 +22,14 @@ output "predictions_table_arn" {
   value = aws_dynamodb_table.predictions.arn
 }
 
+output "integrations_table_name" {
+  value = aws_dynamodb_table.integrations.name
+}
+
+output "integrations_table_arn" {
+  value = aws_dynamodb_table.integrations.arn
+}
+
 output "s3_bucket_name" {
   value = aws_s3_bucket.images.id
 }

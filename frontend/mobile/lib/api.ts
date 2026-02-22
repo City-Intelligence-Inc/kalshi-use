@@ -1,5 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { IdeaCreate, ModelCreate, ModelInfo, Prediction, PredictionUpdate, Snapshot, TradeLog, TradeLogCreate } from "./types";
+import {
+  AggregatedPortfolio,
+  Integration,
+  KalshiFill,
+  KalshiPosition,
+  ModelInfo,
+  Prediction,
+  PredictionUpdate,
+} from "./types";
 
 const ENDPOINTS = {
   production: "https://cuxaxyzbcm.us-east-1.awsapprunner.com",
@@ -59,53 +67,19 @@ async function request<T>(
   return res.json();
 }
 
-// Trade endpoints
-
-export async function createTrade(trade: TradeLogCreate): Promise<TradeLog> {
-  return request<TradeLog>("/trades", {
-    method: "POST",
-    body: JSON.stringify(trade),
-  });
-}
-
-export async function getTrade(tradeId: string): Promise<TradeLog> {
-  return request<TradeLog>(`/trades/${tradeId}`);
-}
-
-export async function getTradesByUser(userId: string): Promise<TradeLog[]> {
-  return request<TradeLog[]>(`/trades?user_id=${encodeURIComponent(userId)}`);
-}
-
-export async function deleteTrade(tradeId: string): Promise<void> {
-  return request(`/trades/${tradeId}`, { method: "DELETE" });
-}
+// ── Health ──
 
 export async function healthCheck(): Promise<{ status: string }> {
   return request<{ status: string }>("/health");
 }
 
-// Model endpoints
+// ── Models ──
 
 export async function getModels(): Promise<ModelInfo[]> {
   return request<ModelInfo[]>("/models");
 }
 
-export async function getModelInfo(name: string): Promise<ModelInfo> {
-  return request<ModelInfo>(`/models/${encodeURIComponent(name)}`);
-}
-
-export async function createModel(model: ModelCreate): Promise<ModelInfo> {
-  return request<ModelInfo>("/models", {
-    method: "POST",
-    body: JSON.stringify(model),
-  });
-}
-
-export async function deleteModel(name: string): Promise<void> {
-  return request(`/models/${encodeURIComponent(name)}`, { method: "DELETE" });
-}
-
-// Prediction endpoints
+// ── Predictions ──
 
 export async function submitPrediction(
   imageUri: string,
@@ -172,39 +146,6 @@ export async function getPredictions(userId: string): Promise<Prediction[]> {
   );
 }
 
-export async function getPredictionLog(): Promise<Prediction[]> {
-  return request<Prediction[]>("/predictions/log");
-}
-
-export async function submitIdea(idea: IdeaCreate): Promise<Prediction> {
-  return request<Prediction>("/predictions/idea", {
-    method: "POST",
-    body: JSON.stringify(idea),
-  });
-}
-
-// Snapshot endpoints
-
-export async function getSnapshots(category: string): Promise<Snapshot[]> {
-  return request<Snapshot[]>(
-    `/snapshots?category=${encodeURIComponent(category)}`
-  );
-}
-
-export async function getSnapshotsByTicker(ticker: string): Promise<Snapshot[]> {
-  return request<Snapshot[]>(`/snapshots/${encodeURIComponent(ticker)}`);
-}
-
-export async function getLatestSnapshot(ticker: string): Promise<Snapshot> {
-  return request<Snapshot>(
-    `/snapshots/${encodeURIComponent(ticker)}/latest`
-  );
-}
-
-/**
- * Poll for a prediction until it reaches a terminal status.
- * Returns the completed prediction.
- */
 export async function pollPrediction(
   predictionId: string,
   intervalMs: number = 2000,
@@ -218,4 +159,69 @@ export async function pollPrediction(
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
   throw new Error("Prediction timed out");
+}
+
+// ── Integrations ──
+
+export async function connectPlatform(
+  userId: string,
+  apiKeyId: string,
+  privateKeyPem: string,
+  platform: string = "kalshi",
+  accountType: string = "personal"
+): Promise<Integration> {
+  return request<Integration>("/integrations/connect", {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: userId,
+      platform,
+      account_type: accountType,
+      api_key_id: apiKeyId,
+      private_key_pem: privateKeyPem,
+    }),
+  });
+}
+
+export async function getIntegrations(userId: string): Promise<Integration[]> {
+  return request<Integration[]>(
+    `/integrations/${encodeURIComponent(userId)}`
+  );
+}
+
+export async function disconnectPlatform(
+  userId: string,
+  platform: string,
+  accountType: string
+): Promise<void> {
+  return request(
+    `/integrations/${encodeURIComponent(userId)}/${encodeURIComponent(platform)}/${encodeURIComponent(accountType)}`,
+    { method: "DELETE" }
+  );
+}
+
+// ── Portfolio ──
+
+export async function getPortfolioBalance(
+  userId: string
+): Promise<AggregatedPortfolio> {
+  return request<AggregatedPortfolio>(
+    `/portfolio/${encodeURIComponent(userId)}/balance`
+  );
+}
+
+export async function getPositions(
+  userId: string
+): Promise<KalshiPosition[]> {
+  return request<KalshiPosition[]>(
+    `/portfolio/${encodeURIComponent(userId)}/positions`
+  );
+}
+
+export async function getFills(
+  userId: string,
+  limit: number = 50
+): Promise<KalshiFill[]> {
+  return request<KalshiFill[]>(
+    `/portfolio/${encodeURIComponent(userId)}/fills?limit=${limit}`
+  );
 }

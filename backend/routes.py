@@ -7,41 +7,32 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 from backend.db import (
     append_analysis_log,
-    delete_trade,
+    delete_integration,
     get_analysis_log,
+    get_integrations_by_user,
     get_prediction,
     get_predictions_by_user,
     get_presigned_url,
-    get_snapshots,
-    get_snapshots_by_category,
-    get_latest_snapshot,
-    get_trade,
-    get_trades_by_user,
+    put_integration,
     put_prediction,
-    put_snapshot,
-    put_trade,
     update_prediction,
-    update_trade,
     upload_image,
 )
 from backend.kalshi_api import enrich_prediction, match_market
 from backend.models import get_model, list_models
-from backend.models.custom import create_custom_model, delete_custom_model
 from backend.notifications import send_push
 from backend.prediction_log import log_prediction
 from backend.pydantic_models import (
-    IdeaCreate,
+    AggregatedPortfolio,
     InputResponse,
-    MarketSnapshot,
-    MarketSnapshotCreate,
-    ModelCreate,
+    Integration,
+    IntegrationConnect,
+    KalshiFill,
+    KalshiPosition,
     ModelInfo,
     OutputRequest,
     Prediction,
     PredictionUpdate,
-    TradeLog,
-    TradeLogCreate,
-    TradeLogUpdate,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,71 +45,173 @@ def root():
     return {"message": "hello"}
 
 
-# ── Trades ──
+# ── Integrations & Portfolio ──
 
 
-@router.post("/trades", response_model=TradeLog)
-def create_trade(trade: TradeLogCreate):
-    item = put_trade(trade.model_dump())
-    return item
+def _get_fernet():
+    """Get Fernet cipher for encrypting/decrypting credentials."""
+    import os
+    from cryptography.fernet import Fernet
+
+    key = os.environ.get("ENCRYPTION_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="Encryption key not configured")
+    return Fernet(key.encode())
 
 
-@router.get("/trades/{trade_id}", response_model=TradeLog)
-def read_trade(trade_id: str):
-    item = get_trade(trade_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Trade not found")
-    return item
+def _get_all_kalshi_clients(user_id: str):
+    """Return all Kalshi clients for a user."""
+    from backend.platforms.kalshi import KalshiClient
+
+    integrations = get_integrations_by_user(user_id)
+    kalshi_integrations = [i for i in integrations if i.get("platform") == "kalshi"]
+    if not kalshi_integrations:
+        return []
+
+    fernet = _get_fernet()
+    clients = []
+    for integration in kalshi_integrations:
+        try:
+            private_key_pem = fernet.decrypt(integration["encrypted_private_key"].encode()).decode()
+            client = KalshiClient(integration["api_key_id"], private_key_pem)
+            clients.append((integration, client))
+        except Exception:
+            logger.exception("Failed to build client for %s", integration.get("platform_account"))
+    return clients
 
 
-@router.get("/trades", response_model=list[TradeLog])
-def list_trades(user_id: str = Query(...)):
-    return get_trades_by_user(user_id)
+@router.post("/integrations/connect", response_model=Integration)
+def connect_integration(req: IntegrationConnect):
+    """Store encrypted credentials and validate with Kalshi."""
+    from backend.platforms.kalshi import KalshiClient
+
+    # Validate credentials first
+    try:
+        client = KalshiClient(req.api_key_id, req.private_key_pem)
+        valid = client.validate_credentials()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid credentials: {exc}")
+
+    if not valid:
+        raise HTTPException(status_code=400, detail="Credentials failed validation")
+
+    # Encrypt the private key
+    fernet = _get_fernet()
+    encrypted_pem = fernet.encrypt(req.private_key_pem.encode()).decode()
+
+    platform_account = f"{req.platform}#{req.account_type}"
+    now = datetime.now(timezone.utc).isoformat()
+
+    integration = {
+        "user_id": req.user_id,
+        "platform_account": platform_account,
+        "platform": req.platform,
+        "account_type": req.account_type,
+        "api_key_id": req.api_key_id,
+        "encrypted_private_key": encrypted_pem,
+        "status": "active",
+        "connected_at": now,
+    }
+    put_integration(integration)
+
+    return {
+        "user_id": req.user_id,
+        "platform": req.platform,
+        "account_type": req.account_type,
+        "api_key_id": req.api_key_id,
+        "status": "active",
+        "connected_at": now,
+        "platform_account": platform_account,
+    }
 
 
-@router.patch("/trades/{trade_id}", response_model=TradeLog)
-def update_trade_endpoint(trade_id: str, updates: TradeLogUpdate):
-    existing = get_trade(trade_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail="Trade not found")
-    item = update_trade(trade_id, updates.model_dump())
-    return item
+@router.get("/integrations/{user_id}", response_model=list[Integration])
+def list_integrations(user_id: str):
+    """List connected platforms for a user (credentials excluded)."""
+    integrations = get_integrations_by_user(user_id)
+    return [
+        {
+            "user_id": i["user_id"],
+            "platform": i["platform"],
+            "account_type": i["account_type"],
+            "api_key_id": i["api_key_id"],
+            "status": i.get("status", "active"),
+            "connected_at": i["connected_at"],
+            "platform_account": i.get("platform_account"),
+        }
+        for i in integrations
+    ]
 
 
-@router.delete("/trades/{trade_id}")
-def delete_trade_endpoint(trade_id: str):
-    existing = get_trade(trade_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail="Trade not found")
-    delete_trade(trade_id)
-    return {"detail": "Trade deleted"}
+@router.delete("/integrations/{user_id}/{platform}/{account_type}")
+def disconnect_integration(user_id: str, platform: str, account_type: str):
+    """Disconnect a platform integration."""
+    platform_account = f"{platform}#{account_type}"
+    delete_integration(user_id, platform_account)
+    return {"detail": "Integration disconnected"}
 
 
-# ── Market Snapshots ──
+@router.get("/portfolio/{user_id}/balance", response_model=AggregatedPortfolio)
+def get_portfolio_balance(user_id: str):
+    """Aggregate live balance from all connected Kalshi accounts."""
+    clients = _get_all_kalshi_clients(user_id)
+    if not clients:
+        return {
+            "total_value": 0,
+            "available_balance": 0,
+            "total_payout": 0,
+            "platforms": [],
+        }
+
+    platform_balances = []
+    total_value = 0
+    total_available = 0
+    total_payout = 0
+
+    for integration, client in clients:
+        try:
+            balance = client.get_balance()
+            platform_balances.append(balance)
+            total_value += balance["total_value"]
+            total_available += balance["available_balance"]
+            total_payout += balance["payout"]
+        except Exception:
+            logger.exception("Failed to fetch balance for %s", integration.get("platform_account"))
+
+    return {
+        "total_value": total_value,
+        "available_balance": total_available,
+        "total_payout": total_payout,
+        "platforms": platform_balances,
+    }
 
 
-@router.post("/snapshots", response_model=MarketSnapshot)
-def create_snapshot(snapshot: MarketSnapshotCreate):
-    item = put_snapshot(snapshot.model_dump())
-    return item
+@router.get("/portfolio/{user_id}/positions", response_model=list[KalshiPosition])
+def get_portfolio_positions(user_id: str):
+    """Live positions from all connected Kalshi accounts."""
+    clients = _get_all_kalshi_clients(user_id)
+    positions = []
+    for integration, client in clients:
+        try:
+            positions.extend(client.get_positions())
+        except Exception:
+            logger.exception("Failed to fetch positions for %s", integration.get("platform_account"))
+    return positions
 
 
-@router.get("/snapshots/{event_ticker}/latest", response_model=MarketSnapshot)
-def read_latest_snapshot(event_ticker: str):
-    item = get_latest_snapshot(event_ticker)
-    if not item:
-        raise HTTPException(status_code=404, detail="No snapshots found")
-    return item
-
-
-@router.get("/snapshots/{event_ticker}", response_model=list[MarketSnapshot])
-def read_snapshots(event_ticker: str, limit: int = Query(50, ge=1, le=500)):
-    return get_snapshots(event_ticker, limit=limit)
-
-
-@router.get("/snapshots", response_model=list[MarketSnapshot])
-def list_snapshots_endpoint(category: str = Query(...), limit: int = Query(50, ge=1, le=500)):
-    return get_snapshots_by_category(category, limit=limit)
+@router.get("/portfolio/{user_id}/fills", response_model=list[KalshiFill])
+def get_portfolio_fills(user_id: str, limit: int = Query(50, ge=1, le=200)):
+    """Recent fills from all connected Kalshi accounts."""
+    clients = _get_all_kalshi_clients(user_id)
+    fills = []
+    for integration, client in clients:
+        try:
+            fills.extend(client.get_fills(limit=limit))
+        except Exception:
+            logger.exception("Failed to fetch fills for %s", integration.get("platform_account"))
+    # Sort by time descending
+    fills.sort(key=lambda f: f.get("created_time", ""), reverse=True)
+    return fills[:limit]
 
 
 # ── Models ──
@@ -127,72 +220,6 @@ def list_snapshots_endpoint(category: str = Query(...), limit: int = Query(50, g
 @router.get("/models", response_model=list[ModelInfo])
 def list_models_endpoint():
     return list_models()
-
-
-@router.get("/models/{name}", response_model=ModelInfo)
-def get_model_endpoint(name: str):
-    runner = get_model(name)
-    if not runner:
-        raise HTTPException(status_code=404, detail=f"Model '{name}' not found")
-    return {
-        "name": runner.name,
-        "display_name": runner.display_name,
-        "description": runner.description,
-        "status": runner.status,
-        "input_type": runner.input_type,
-        "output_type": runner.output_type,
-    }
-
-
-@router.post("/models", response_model=ModelInfo)
-def create_model_endpoint(model: ModelCreate):
-    """Create a custom model backed by an existing runner."""
-    from backend.models.base import MODEL_REGISTRY
-
-    # Don't allow overwriting hardcoded models
-    if model.name in MODEL_REGISTRY:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot overwrite built-in model '{model.name}'",
-        )
-
-    valid_runners = ["openrouter", "gemini", "random"]
-    if model.backing_runner not in valid_runners:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid backing_runner. Choose from: {valid_runners}",
-        )
-
-    config = model.model_dump()
-    config["status"] = "available"
-    create_custom_model(config)
-
-    return {
-        "name": config["name"],
-        "display_name": config["display_name"],
-        "description": config.get("description", ""),
-        "status": "available",
-        "input_type": config["input_type"],
-        "output_type": config["output_type"],
-        "custom": True,
-    }
-
-
-@router.delete("/models/{name}")
-def delete_model_endpoint(name: str):
-    """Delete a custom model. Cannot delete built-in models."""
-    from backend.models.base import MODEL_REGISTRY
-
-    if name in MODEL_REGISTRY:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot delete built-in model '{name}'",
-        )
-
-    if not delete_custom_model(name):
-        raise HTTPException(status_code=404, detail=f"Model '{name}' not found")
-
-    return {"detail": f"Model '{name}' deleted"}
 
 
 # ── Predictions: Pipeline ──
@@ -517,74 +544,6 @@ def update_prediction_endpoint(prediction_id: str, updates: PredictionUpdate):
     fields["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = update_prediction(prediction_id, fields)
     return result
-
-
-@router.post("/predictions/idea", response_model=Prediction)
-def create_idea(idea: IdeaCreate):
-    """Create a manual trade idea — a quant researcher's thesis, no image needed."""
-    prediction_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-
-    recommendation = {
-        "ticker": idea.ticker,
-        "title": idea.title,
-        "side": idea.side,
-        "confidence": idea.confidence,
-        "reasoning": idea.reasoning,
-        "factors": [f.model_dump() for f in idea.factors] if idea.factors else [],
-        "ev_analysis": [e.model_dump() for e in idea.ev_analysis] if idea.ev_analysis else [],
-        "bear_case": idea.bear_case,
-        "recommended_position": idea.recommended_position,
-        "no_bet": idea.no_bet or False,
-        "no_bet_reason": idea.no_bet_reason,
-    }
-
-    # Enrich with live Kalshi market data
-    market_data = None
-    if idea.ticker and idea.ticker.upper() != "UNKNOWN":
-        try:
-            market_data = enrich_prediction(idea.ticker)
-        except Exception:
-            logger.exception("Market enrichment failed for idea %s", prediction_id)
-
-    prediction = {
-        "prediction_id": prediction_id,
-        "user_id": idea.user_id,
-        "image_key": "",
-        "image_url": "",
-        "model": "manual",
-        "status": "completed",
-        "recommendation": recommendation,
-        "user_notes": idea.user_notes,
-        "created_at": now,
-        "completed_at": now,
-    }
-    if market_data:
-        prediction["market_data"] = market_data
-    put_prediction(prediction)
-
-    # Log to local JSONL
-    try:
-        log_prediction({
-            "prediction_id": prediction_id,
-            "model": "manual",
-            "user_id": idea.user_id,
-            "status": "completed",
-            "ticker": idea.ticker,
-            "side": idea.side,
-            "confidence": idea.confidence,
-            "completed_at": now,
-        })
-    except Exception:
-        logger.exception("Failed to write prediction log for idea %s", prediction_id)
-
-    return prediction
-
-
-@router.get("/predictions/log")
-def read_analysis_log():
-    """Return the full analysis log (all predictions ever run)."""
-    return get_analysis_log()
 
 
 @router.get("/predictions/{prediction_id}", response_model=Prediction)

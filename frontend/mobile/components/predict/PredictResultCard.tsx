@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,13 +14,45 @@ import {
   UIManager,
   Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
-import { Prediction, Factor, EvScenario, TradeLogCreate, MarketData } from "../../lib/types";
-import { updatePrediction, createTrade } from "../../lib/api";
+import { Prediction, Factor, EvScenario, MarketData } from "../../lib/types";
+import { updatePrediction } from "../../lib/api";
 
 if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
+
+const BEGINNER_MODE_KEY = "beginner_mode";
+
+// ── Beginner Tip ──
+
+function BeginnerTip({ text, show }: { text: string; show: boolean }) {
+  if (!show) return null;
+  return (
+    <View style={tipStyles.container}>
+      <Text style={tipStyles.text}>{text}</Text>
+    </View>
+  );
+}
+
+const tipStyles = StyleSheet.create({
+  container: {
+    borderLeftWidth: 2,
+    borderLeftColor: "#6366F1",
+    backgroundColor: "rgba(99,102,241,0.06)",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: 8,
+    borderRadius: 4,
+  },
+  text: {
+    color: "#818CF8",
+    fontSize: 12,
+    fontStyle: "italic",
+    lineHeight: 18,
+  },
+});
 
 // ── Toggle Section ──
 
@@ -29,12 +61,14 @@ function ToggleSection({
   icon,
   defaultOpen = false,
   badge,
+  beginnerTip,
   children,
 }: {
   title: string;
   icon: keyof typeof Ionicons.glyphMap;
   defaultOpen?: boolean;
   badge?: { text: string; color: string };
+  beginnerTip?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -64,7 +98,12 @@ function ToggleSection({
           color="#475569"
         />
       </Pressable>
-      {open && <View style={styles.toggleBody}>{children}</View>}
+      {open && (
+        <View style={styles.toggleBody}>
+          {beginnerTip}
+          {children}
+        </View>
+      )}
     </View>
   );
 }
@@ -184,7 +223,7 @@ function DepthBar({ yesDepth, noDepth }: { yesDepth: number; noDepth: number }) 
   );
 }
 
-function LiveMarketSection({ data }: { data: MarketData }) {
+function LiveMarketSection({ data, beginnerMode }: { data: MarketData; beginnerMode: boolean }) {
   if (data.status === "not_found") {
     return (
       <View style={liveStyles.warningRow}>
@@ -247,6 +286,10 @@ function LiveMarketSection({ data }: { data: MarketData }) {
           <PriceCell label="LAST" value={data.last_price} />
         </View>
       </View>
+      <BeginnerTip
+        show={beginnerMode}
+        text="BID = highest someone will pay. ASK = lowest someone will sell for. SPREAD = gap between them — smaller is easier to trade."
+      />
 
       {/* Volume row */}
       {(data.volume != null || data.open_interest != null) && (
@@ -271,11 +314,19 @@ function LiveMarketSection({ data }: { data: MarketData }) {
           )}
         </View>
       )}
+      <BeginnerTip
+        show={beginnerMode && (data.volume != null || data.open_interest != null)}
+        text="Volume = how many contracts traded. Open Interest = contracts still active (not settled yet)."
+      />
 
       {/* Orderbook depth bar */}
       {data.yes_depth != null && data.no_depth != null && (
         <DepthBar yesDepth={data.yes_depth} noDepth={data.no_depth} />
       )}
+      <BeginnerTip
+        show={beginnerMode && data.yes_depth != null && data.no_depth != null}
+        text="Orderbook depth = how much money is lined up on each side."
+      />
 
       {/* Event context */}
       {data.event_title && (
@@ -317,6 +368,13 @@ export default function PredictResultCard({
   const [saving, setSaving] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [beginnerMode, setBeginnerMode] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(BEGINNER_MODE_KEY).then((v) => {
+      if (v === "true") setBeginnerMode(true);
+    });
+  }, []);
 
   if (!rec) {
     return (
@@ -360,8 +418,27 @@ export default function PredictResultCard({
   const yesFactors = factors.filter((f) => f.direction === "favors_yes").length;
   const noFactors = factors.filter((f) => f.direction === "favors_no").length;
 
+  const toggleBeginner = () => {
+    const next = !beginnerMode;
+    setBeginnerMode(next);
+    AsyncStorage.setItem(BEGINNER_MODE_KEY, next ? "true" : "false");
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* ═══ Beginner Toggle ═══ */}
+      <Pressable style={styles.beginnerToggle} onPress={toggleBeginner}>
+        <Ionicons
+          name={beginnerMode ? "bulb" : "bulb-outline"}
+          size={16}
+          color={beginnerMode ? "#818CF8" : "#475569"}
+        />
+        <Text style={[styles.beginnerToggleText, beginnerMode && { color: "#818CF8" }]}>
+          Explain
+        </Text>
+        <View style={[styles.beginnerDot, beginnerMode && styles.beginnerDotOn]} />
+      </Pressable>
+
       {/* ═══ THE TRADE ═══ */}
       {rec.no_bet ? (
         <View style={styles.passCard}>
@@ -372,6 +449,10 @@ export default function PredictResultCard({
           </View>
           <Text style={styles.passTitle}>PASS</Text>
           <Text style={styles.passSubtitle}>No edge — don't trade this</Text>
+          <BeginnerTip
+            show={beginnerMode}
+            text="The model doesn't see a good bet here — the market price looks about right."
+          />
           <View style={styles.passDivider} />
           <Text style={styles.passReason}>
             {rec.no_bet_reason || "Market is efficiently priced. No mispricing detected."}
@@ -392,10 +473,18 @@ export default function PredictResultCard({
               </Text>
             </View>
           </View>
+          <BeginnerTip
+            show={beginnerMode}
+            text={`The model thinks you should bet ${rec.side.toUpperCase()} on this question. The EV pill shows expected profit per contract if the model is right.`}
+          />
 
           {/* Ticker + title */}
           <Text style={styles.tradeTicker}>{rec.ticker}</Text>
           {rec.title && <Text style={styles.tradeTitle}>{rec.title}</Text>}
+          <BeginnerTip
+            show={beginnerMode}
+            text="The ticker is this market's ID on Kalshi, like a stock ticker symbol."
+          />
 
           {/* Key numbers strip */}
           <View style={styles.numbersStrip}>
@@ -422,6 +511,10 @@ export default function PredictResultCard({
               </Text>
             </View>
           </View>
+          <BeginnerTip
+            show={beginnerMode}
+            text={`Confidence = how sure the model is (${confidencePct}% means it thinks there's a ${confidencePct}-in-100 chance it's correct). Size = how much of your money to risk. Full Kelly = the mathematically optimal bet size — the recommended size is usually smaller to reduce risk.`}
+          />
         </View>
       )}
 
@@ -438,29 +531,8 @@ export default function PredictResultCard({
               <Pressable
                 style={styles.acceptButton}
                 disabled={accepting}
-                onPress={async () => {
-                  setAccepting(true);
-                  try {
-                    const price = rec.confidence * 100; // use confidence as price proxy
-                    const quantity = 1;
-                    const trade: TradeLogCreate = {
-                      user_id: prediction.user_id,
-                      agent_id: prediction.prediction_id,
-                      ticker: rec.ticker,
-                      side: rec.side as "yes" | "no",
-                      action: "buy",
-                      quantity,
-                      price,
-                      total_cost: price * quantity,
-                      status: "pending",
-                    };
-                    await createTrade(trade);
-                    setAccepted(true);
-                  } catch (e: any) {
-                    Alert.alert("Error", e.message ?? "Failed to log trade");
-                  } finally {
-                    setAccepting(false);
-                  }
+                onPress={() => {
+                  setAccepted(true);
                 }}
               >
                 {accepting ? (
@@ -482,7 +554,17 @@ export default function PredictResultCard({
       )}
 
       {/* ═══ WHY — The reasoning ═══ */}
-      <ToggleSection title="Why this trade" icon="bulb-outline" defaultOpen>
+      <ToggleSection
+        title="Why this trade"
+        icon="bulb-outline"
+        defaultOpen
+        beginnerTip={
+          <BeginnerTip
+            show={beginnerMode}
+            text="The model's main argument for why this bet is worth taking."
+          />
+        }
+      >
         <Text style={styles.bodyText}>{rec.reasoning}</Text>
       </ToggleSection>
 
@@ -496,6 +578,12 @@ export default function PredictResultCard({
             text: `${yesFactors} YES / ${noFactors} NO`,
             color: yesFactors > noFactors ? "#22C55E" : "#EF4444",
           }}
+          beginnerTip={
+            <BeginnerTip
+              show={beginnerMode}
+              text="Specific facts the model found. Green ↑ = supports the bet. Red ↓ = argues against. More dots = stronger signal."
+            />
+          }
         >
           {factors.map((f, i) => (
             <FactorRow key={i} factor={f} />
@@ -512,6 +600,12 @@ export default function PredictResultCard({
             text: `best +${bestEv.toFixed(2)}c`,
             color: "#22C55E",
           }}
+          beginnerTip={
+            <BeginnerTip
+              show={beginnerMode}
+              text="What happens if the model's probability estimate is off. Green EV = still profitable. Kelly = suggested bet size at that probability."
+            />
+          }
         >
           <Text style={styles.evExplainer}>
             If your true probability estimate is wrong, here's how the trade looks at different levels.
@@ -523,7 +617,16 @@ export default function PredictResultCard({
 
       {/* ═══ WHAT KILLS YOU — Bear case ═══ */}
       {rec.bear_case && (
-        <ToggleSection title="What kills this trade" icon="skull-outline">
+        <ToggleSection
+          title="What kills this trade"
+          icon="skull-outline"
+          beginnerTip={
+            <BeginnerTip
+              show={beginnerMode}
+              text="The strongest argument AGAINST this bet. Read this before putting money down."
+            />
+          }
+        >
           <View style={styles.bearCard}>
             <Text style={styles.bodyText}>{rec.bear_case}</Text>
           </View>
@@ -543,7 +646,7 @@ export default function PredictResultCard({
                 : { text: "ERROR", color: "#64748B" }
           }
         >
-          <LiveMarketSection data={prediction.market_data} />
+          <LiveMarketSection data={prediction.market_data} beginnerMode={beginnerMode} />
         </ToggleSection>
       )}
 
@@ -706,6 +809,35 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 100,
+  },
+
+  // ── Beginner Toggle ──
+  beginnerToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    backgroundColor: "#111827",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+  },
+  beginnerToggleText: {
+    color: "#475569",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  beginnerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#334155",
+  },
+  beginnerDotOn: {
+    backgroundColor: "#818CF8",
   },
 
   // ── Trade Card (the decision) ──

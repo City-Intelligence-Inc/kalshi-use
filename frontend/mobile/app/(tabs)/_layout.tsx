@@ -29,11 +29,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="trades"
+        name="positions"
         options={{
-          title: "Trades",
+          title: "Positions",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="swap-vertical-outline" size={size} color={color} />
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
         }}
       />
@@ -46,11 +46,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="data"
+        name="activity"
         options={{
-          title: "Data",
+          title: "Activity",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="server-outline" size={size} color={color} />
+            <Ionicons name="list-outline" size={size} color={color} />
           ),
         }}
       />
@@ -61,13 +61,6 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="settings-outline" size={size} color={color} />
           ),
-        }}
-      />
-      {/* Hide the old agent tab from navigation */}
-      <Tabs.Screen
-        name="agent"
-        options={{
-          href: null,
         }}
       />
     </Tabs>

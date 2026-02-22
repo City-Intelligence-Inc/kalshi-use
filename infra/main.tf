@@ -116,3 +116,25 @@ resource "aws_dynamodb_table" "market_snapshots" {
     App         = "kalshi-use"
   }
 }
+
+resource "aws_dynamodb_table" "integrations" {
+  name         = "kalshi-use-integrations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_id"
+  range_key    = "platform_account"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "platform_account"
+    type = "S"
+  }
+
+  tags = {
+    Environment = var.environment
+    App         = "kalshi-use"
+  }
+}

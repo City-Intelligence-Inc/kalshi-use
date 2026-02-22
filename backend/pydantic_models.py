@@ -2,57 +2,6 @@ from pydantic import BaseModel
 from typing import Optional
 
 
-class TradeLogCreate(BaseModel):
-    user_id: str
-    agent_id: Optional[str] = None
-    ticker: str
-    side: str  # "yes" or "no"
-    action: str  # "buy" or "sell"
-    quantity: int
-    price: float  # price per contract in cents
-    total_cost: float
-    status: str = "pending"  # "pending", "filled", "canceled"
-
-
-class TradeLogUpdate(BaseModel):
-    agent_id: Optional[str] = None
-    ticker: Optional[str] = None
-    side: Optional[str] = None
-    action: Optional[str] = None
-    quantity: Optional[int] = None
-    price: Optional[float] = None
-    total_cost: Optional[float] = None
-    status: Optional[str] = None
-    filled_at: Optional[str] = None
-
-
-class TradeLog(TradeLogCreate):
-    trade_id: str
-    created_at: str
-    filled_at: Optional[str] = None
-
-
-class MarketOutcome(BaseModel):
-    name: str
-    yes_price: int
-    no_price: int
-
-
-class MarketSnapshotCreate(BaseModel):
-    event_ticker: str
-    title: str
-    category: str
-    status: str  # "live", "scheduled", "closed"
-    volume: int
-    markets: list[MarketOutcome]
-    num_markets: int
-    url: str
-
-
-class MarketSnapshot(MarketSnapshotCreate):
-    scraped_at: str
-
-
 # ── Prediction models ──
 
 
@@ -88,10 +37,8 @@ class MarketData(BaseModel):
     status: str  # "found", "not_found", "error"
     ticker: Optional[str] = None
     reason: Optional[str] = None
-    # Market status
     market_status: Optional[str] = None
     result: Optional[str] = None
-    # Pricing (cents)
     yes_bid: Optional[float] = None
     yes_ask: Optional[float] = None
     no_bid: Optional[float] = None
@@ -102,16 +49,13 @@ class MarketData(BaseModel):
     spread: Optional[float] = None
     midpoint: Optional[float] = None
     price_delta: Optional[float] = None
-    # Volume
     volume: Optional[int] = None
     volume_24h: Optional[int] = None
     open_interest: Optional[int] = None
-    # Orderbook
     yes_depth: Optional[int] = None
     no_depth: Optional[int] = None
     orderbook_yes: Optional[list] = None
     orderbook_no: Optional[list] = None
-    # Event context
     event_ticker: Optional[str] = None
     event_title: Optional[str] = None
     event_category: Optional[str] = None
@@ -130,8 +74,8 @@ class Prediction(BaseModel):
     recommendation: Optional[PredictionRecommendation] = None
     market_data: Optional[MarketData] = None
     error_message: Optional[str] = None
-    user_notes: Optional[str] = None    # user-editable notes after analysis
-    model_idea: Optional[str] = None    # user-submitted model/analysis idea
+    user_notes: Optional[str] = None
+    model_idea: Optional[str] = None
     created_at: str
     completed_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -141,23 +85,6 @@ class PredictionUpdate(BaseModel):
     context: Optional[str] = None
     user_notes: Optional[str] = None
     model_idea: Optional[str] = None
-
-
-class IdeaCreate(BaseModel):
-    """A manually submitted trade idea — like a quant researcher's thesis."""
-    user_id: str
-    ticker: str
-    title: Optional[str] = None
-    side: str  # "yes" or "no"
-    confidence: float  # 0-1
-    reasoning: str
-    factors: Optional[list[Factor]] = None
-    ev_analysis: Optional[list[EvScenario]] = None
-    bear_case: Optional[str] = None
-    recommended_position: Optional[float] = None
-    no_bet: Optional[bool] = False
-    no_bet_reason: Optional[str] = None
-    user_notes: Optional[str] = None
 
 
 # ── Model info ──
@@ -173,18 +100,6 @@ class ModelInfo(BaseModel):
     custom: Optional[bool] = None
 
 
-class ModelCreate(BaseModel):
-    """User-created custom model config."""
-    name: str                               # slug, e.g. "btc-specialist"
-    display_name: str                       # e.g. "BTC Specialist"
-    description: Optional[str] = ""
-    backing_runner: str = "random"          # "openrouter", "gemini", "random"
-    backing_llm: Optional[str] = None       # e.g. "anthropic/claude-3.5-sonnet"
-    custom_prompt: Optional[str] = None     # override system prompt
-    input_type: str = "image"
-    output_type: str = "prediction"
-
-
 # ── Pipeline request/response models ──
 
 
@@ -197,3 +112,59 @@ class InputResponse(BaseModel):
 class OutputRequest(BaseModel):
     prediction_id: str
     model: str = "taruns_model"
+
+
+# ── Integrations & Portfolio ──
+
+
+class IntegrationConnect(BaseModel):
+    user_id: str
+    platform: str = "kalshi"
+    account_type: str = "personal"  # "personal" or "agent"
+    api_key_id: str
+    private_key_pem: str
+
+
+class Integration(BaseModel):
+    user_id: str
+    platform: str
+    account_type: str
+    api_key_id: str
+    status: str  # "active", "error"
+    connected_at: str
+    platform_account: Optional[str] = None  # composite key: "kalshi#personal"
+
+
+class PortfolioBalance(BaseModel):
+    available_balance: float
+    payout: float
+    total_value: float
+
+
+class AggregatedPortfolio(BaseModel):
+    total_value: float
+    available_balance: float
+    total_payout: float
+    platforms: list[PortfolioBalance]
+
+
+class KalshiPosition(BaseModel):
+    ticker: str
+    market_title: str
+    yes_count: int
+    no_count: int
+    market_exposure: float
+    realized_pnl: float
+    resting_orders_count: int
+
+
+class KalshiFill(BaseModel):
+    trade_id: str
+    ticker: str
+    side: str
+    action: str
+    type: str
+    count: int
+    yes_price: int
+    no_price: int
+    created_time: str

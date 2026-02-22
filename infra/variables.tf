@@ -29,3 +29,10 @@ variable "gemini_api_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "encryption_key" {
+  description = "Fernet encryption key for storing platform credentials"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

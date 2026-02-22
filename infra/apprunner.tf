@@ -61,6 +61,8 @@ data "aws_iam_policy_document" "dynamodb_access" {
       "${aws_dynamodb_table.market_snapshots.arn}/index/*",
       aws_dynamodb_table.predictions.arn,
       "${aws_dynamodb_table.predictions.arn}/index/*",
+      aws_dynamodb_table.integrations.arn,
+      "${aws_dynamodb_table.integrations.arn}/index/*",
     ]
   }
 
@@ -202,9 +204,11 @@ resource "aws_apprunner_service" "backend" {
           TABLE_NAME               = aws_dynamodb_table.trading_logs.name
           SNAPSHOTS_TABLE_NAME     = aws_dynamodb_table.market_snapshots.name
           PREDICTIONS_TABLE_NAME   = aws_dynamodb_table.predictions.name
+          INTEGRATIONS_TABLE_NAME  = aws_dynamodb_table.integrations.name
           S3_BUCKET_NAME           = aws_s3_bucket.images.id
           OPENROUTER_API_KEY       = var.openrouter_api_key
           GEMINI_API_KEY           = var.gemini_api_key
+          ENCRYPTION_KEY           = var.encryption_key
         }
       }
     }

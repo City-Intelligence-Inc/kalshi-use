@@ -28,6 +28,7 @@ def _decimals_to_floats(obj):
 TABLE_NAME = os.environ.get("TABLE_NAME", "kalshi-use-trading-logs")
 SNAPSHOTS_TABLE_NAME = os.environ.get("SNAPSHOTS_TABLE_NAME", "kalshi-use-market-snapshots")
 PREDICTIONS_TABLE_NAME = os.environ.get("PREDICTIONS_TABLE_NAME", "kalshi-use-predictions")
+INTEGRATIONS_TABLE_NAME = os.environ.get("INTEGRATIONS_TABLE_NAME", "kalshi-use-integrations")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", "kalshi-use-images")
 LOCAL_IMAGE_DIR = Path("/tmp/kalshi-images")
 
@@ -35,6 +36,7 @@ dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
 snapshots_table = dynamodb.Table(SNAPSHOTS_TABLE_NAME)
 predictions_table = dynamodb.Table(PREDICTIONS_TABLE_NAME)
+integrations_table = dynamodb.Table(INTEGRATIONS_TABLE_NAME)
 
 # S3 client — always attempt S3 in production (App Runner provides IAM role).
 # Fall back to local only when no AWS credentials are configured at all.
@@ -287,3 +289,25 @@ def get_predictions_by_user(user_id: str) -> list[dict]:
         if item.get("image_key"):
             item["image_url"] = get_presigned_url(item["image_key"])
     return items
+
+
+# ── Integrations ──
+
+
+def put_integration(integration: dict) -> dict:
+    integrations_table.put_item(Item=_floats_to_decimals(integration))
+    return integration
+
+
+def get_integrations_by_user(user_id: str) -> list[dict]:
+    resp = integrations_table.query(
+        KeyConditionExpression=Key("user_id").eq(user_id),
+    )
+    return _decimals_to_floats(resp.get("Items", []))
+
+
+def delete_integration(user_id: str, platform_account: str) -> bool:
+    integrations_table.delete_item(
+        Key={"user_id": user_id, "platform_account": platform_account},
+    )
+    return True

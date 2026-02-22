@@ -24,6 +24,7 @@ from backend.db import (
     update_trade,
     upload_image,
 )
+from backend.kalshi_api import enrich_prediction
 from backend.models import get_model, list_models
 from backend.notifications import send_push
 from backend.prediction_log import log_prediction
@@ -136,6 +137,8 @@ def get_model_endpoint(name: str):
         "display_name": runner.display_name,
         "description": runner.description,
         "status": runner.status,
+        "input_type": runner.input_type,
+        "output_type": runner.output_type,
     }
 
 
@@ -163,12 +166,24 @@ async def _run_model_background(
         loop = asyncio.get_event_loop()
         recommendation = await loop.run_in_executor(None, runner.run, image_key, context)
 
+        # Enrich with live Kalshi market data
+        market_data = None
+        ticker = recommendation.get("ticker")
+        if ticker and ticker.upper() != "UNKNOWN":
+            try:
+                market_data = await loop.run_in_executor(None, enrich_prediction, ticker)
+            except Exception:
+                logger.exception("Market enrichment failed for %s", prediction_id)
+
         completed_at = datetime.now(timezone.utc).isoformat()
-        update_prediction(prediction_id, {
+        updates = {
             "recommendation": recommendation,
             "status": "completed",
             "completed_at": completed_at,
-        })
+        }
+        if market_data:
+            updates["market_data"] = market_data
+        update_prediction(prediction_id, updates)
 
         # Log the analysis (S3)
         try:
@@ -178,6 +193,7 @@ async def _run_model_background(
                 "image_key": image_key,
                 "context": context,
                 "recommendation": recommendation,
+                "market_data": market_data,
                 "completed_at": completed_at,
             })
         except Exception:
@@ -281,12 +297,25 @@ async def predict_output(req: OutputRequest):
 
     # Run model
     recommendation = runner.run(prediction["image_key"], prediction.get("context"))
+
+    # Enrich with live Kalshi market data
+    market_data = None
+    ticker = recommendation.get("ticker")
+    if ticker and ticker.upper() != "UNKNOWN":
+        try:
+            market_data = enrich_prediction(ticker)
+        except Exception:
+            logger.exception("Market enrichment failed for %s", req.prediction_id)
+
     completed_at = datetime.now(timezone.utc).isoformat()
-    result = update_prediction(req.prediction_id, {
+    updates = {
         "recommendation": recommendation,
         "status": "completed",
         "completed_at": completed_at,
-    })
+    }
+    if market_data:
+        updates["market_data"] = market_data
+    result = update_prediction(req.prediction_id, updates)
 
     # Log the analysis (S3)
     try:
@@ -296,6 +325,7 @@ async def predict_output(req: OutputRequest):
             "image_key": prediction["image_key"],
             "context": prediction.get("context"),
             "recommendation": recommendation,
+            "market_data": market_data,
             "completed_at": completed_at,
         })
     except Exception:
@@ -421,6 +451,14 @@ def create_idea(idea: IdeaCreate):
         "no_bet_reason": idea.no_bet_reason,
     }
 
+    # Enrich with live Kalshi market data
+    market_data = None
+    if idea.ticker and idea.ticker.upper() != "UNKNOWN":
+        try:
+            market_data = enrich_prediction(idea.ticker)
+        except Exception:
+            logger.exception("Market enrichment failed for idea %s", prediction_id)
+
     prediction = {
         "prediction_id": prediction_id,
         "user_id": idea.user_id,
@@ -433,6 +471,8 @@ def create_idea(idea: IdeaCreate):
         "created_at": now,
         "completed_at": now,
     }
+    if market_data:
+        prediction["market_data"] = market_data
     put_prediction(prediction)
 
     # Log to local JSONL

@@ -88,6 +88,9 @@ function ModelCard({ item }: { item: ModelInfo }) {
         <Text style={styles.cardTitle} numberOfLines={2}>
           {item.description}
         </Text>
+        <Text style={{ color: "#64748B", fontSize: 11, marginTop: 2 }}>
+          {item.input_type} → {item.output_type}
+        </Text>
       </View>
       <View
         style={[

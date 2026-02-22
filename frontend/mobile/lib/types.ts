@@ -76,6 +76,41 @@ export interface PredictionRecommendation {
   no_bet_reason?: string;
 }
 
+export interface MarketData {
+  status: "found" | "not_found" | "error";
+  ticker?: string;
+  reason?: string;
+  // Market status
+  market_status?: string;
+  result?: string;
+  // Pricing (cents)
+  yes_bid?: number;
+  yes_ask?: number;
+  no_bid?: number;
+  no_ask?: number;
+  last_price?: number;
+  previous_price?: number;
+  previous_yes_bid?: number;
+  spread?: number;
+  midpoint?: number;
+  price_delta?: number;
+  // Volume
+  volume?: number;
+  volume_24h?: number;
+  open_interest?: number;
+  // Orderbook
+  yes_depth?: number;
+  no_depth?: number;
+  orderbook_yes?: number[][];
+  orderbook_no?: number[][];
+  // Event context
+  event_ticker?: string;
+  event_title?: string;
+  event_category?: string;
+  mutually_exclusive?: boolean;
+  related_market_count?: number;
+}
+
 export interface Prediction {
   prediction_id: string;
   user_id: string;
@@ -85,6 +120,7 @@ export interface Prediction {
   model: string;
   status: string;
   recommendation?: PredictionRecommendation;
+  market_data?: MarketData;
   user_notes?: string;
   model_idea?: string;
   created_at: string;
@@ -119,6 +155,8 @@ export interface ModelInfo {
   display_name: string;
   description: string;
   status: string;
+  input_type: string;
+  output_type: string;
 }
 
 export interface AgentConfig {

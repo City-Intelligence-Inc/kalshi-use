@@ -84,6 +84,41 @@ class PredictionRecommendation(BaseModel):
     no_bet_reason: Optional[str] = None                # why not to bet
 
 
+class MarketData(BaseModel):
+    status: str  # "found", "not_found", "error"
+    ticker: Optional[str] = None
+    reason: Optional[str] = None
+    # Market status
+    market_status: Optional[str] = None
+    result: Optional[str] = None
+    # Pricing (cents)
+    yes_bid: Optional[float] = None
+    yes_ask: Optional[float] = None
+    no_bid: Optional[float] = None
+    no_ask: Optional[float] = None
+    last_price: Optional[float] = None
+    previous_price: Optional[float] = None
+    previous_yes_bid: Optional[float] = None
+    spread: Optional[float] = None
+    midpoint: Optional[float] = None
+    price_delta: Optional[float] = None
+    # Volume
+    volume: Optional[int] = None
+    volume_24h: Optional[int] = None
+    open_interest: Optional[int] = None
+    # Orderbook
+    yes_depth: Optional[int] = None
+    no_depth: Optional[int] = None
+    orderbook_yes: Optional[list] = None
+    orderbook_no: Optional[list] = None
+    # Event context
+    event_ticker: Optional[str] = None
+    event_title: Optional[str] = None
+    event_category: Optional[str] = None
+    mutually_exclusive: Optional[bool] = None
+    related_market_count: Optional[int] = None
+
+
 class Prediction(BaseModel):
     prediction_id: str
     user_id: str
@@ -93,6 +128,7 @@ class Prediction(BaseModel):
     model: str
     status: str  # "processing", "completed"
     recommendation: Optional[PredictionRecommendation] = None
+    market_data: Optional[MarketData] = None
     user_notes: Optional[str] = None    # user-editable notes after analysis
     model_idea: Optional[str] = None    # user-submitted model/analysis idea
     created_at: str
@@ -131,6 +167,8 @@ class ModelInfo(BaseModel):
     display_name: str
     description: str
     status: str  # "available", "coming_soon"
+    input_type: str  # "image", "text", "image+text"
+    output_type: str  # "text", "prediction", "structured"
 
 
 # ── Pipeline request/response models ──

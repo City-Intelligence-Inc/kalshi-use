@@ -1,20 +1,6 @@
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
-
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = {
-    Dashboard: "◉",
-    Agent: "⚙",
-    Predict: "📷",
-    Trades: "↕",
-    Settings: "☰",
-  };
-  return (
-    <Text style={{ fontSize: 20, color: focused ? "#6366F1" : "#64748B" }}>
-      {icons[label] ?? "·"}
-    </Text>
-  );
-}
+import { Ionicons } from "@expo/vector-icons";
+import CenterTabButton from "../../components/CenterTabButton";
 
 export default function TabsLayout() {
   return (
@@ -26,6 +12,8 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: "#0B1120",
           borderTopColor: "#1E293B",
+          height: 85,
+          paddingBottom: 28,
         },
         tabBarActiveTintColor: "#6366F1",
         tabBarInactiveTintColor: "#64748B",
@@ -34,27 +22,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: "Dashboard",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Dashboard" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="agent"
-        options={{
-          title: "Agent",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Agent" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="predict"
-        options={{
-          title: "Predict",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Predict" focused={focused} />
+          title: "Home",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
           ),
         }}
       />
@@ -62,8 +32,25 @@ export default function TabsLayout() {
         name="trades"
         options={{
           title: "Trades",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Trades" focused={focused} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="swap-vertical-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="predict"
+        options={{
+          title: "",
+          headerShown: false,
+          tabBarButton: (props) => <CenterTabButton {...props} />,
+        }}
+      />
+      <Tabs.Screen
+        name="data"
+        options={{
+          title: "Data",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="server-outline" size={size} color={color} />
           ),
         }}
       />
@@ -71,9 +58,16 @@ export default function TabsLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Settings" focused={focused} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" size={size} color={color} />
           ),
+        }}
+      />
+      {/* Hide the old agent tab from navigation */}
+      <Tabs.Screen
+        name="agent"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

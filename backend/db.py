@@ -221,6 +221,15 @@ def get_analysis_log() -> list[dict]:
         return []
 
 
+def get_image_bytes(image_key: str) -> bytes:
+    """Fetch raw image bytes from S3 (or local fallback)."""
+    if _s3_available:
+        resp = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=image_key)
+        return resp["Body"].read()
+    local_path = LOCAL_IMAGE_DIR / image_key
+    return local_path.read_bytes()
+
+
 # ── Predictions ──
 
 

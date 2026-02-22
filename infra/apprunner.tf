@@ -203,6 +203,8 @@ resource "aws_apprunner_service" "backend" {
           SNAPSHOTS_TABLE_NAME     = aws_dynamodb_table.market_snapshots.name
           PREDICTIONS_TABLE_NAME   = aws_dynamodb_table.predictions.name
           S3_BUCKET_NAME           = aws_s3_bucket.images.id
+          OPENROUTER_API_KEY       = var.openrouter_api_key
+          GEMINI_API_KEY           = var.gemini_api_key
         }
       }
     }

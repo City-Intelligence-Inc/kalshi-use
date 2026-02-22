@@ -15,3 +15,17 @@ variable "app_name" {
   type        = string
   default     = "kalshi-use"
 }
+
+variable "openrouter_api_key" {
+  description = "API key for OpenRouter (vision model routing)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "gemini_api_key" {
+  description = "API key for Google Gemini"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

@@ -6,26 +6,44 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "kalshi-use",
-    "userInterfaceStyle": "light",
+    "owner": "arihantchoudhary",
+    "userInterfaceStyle": "dark",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0B1120"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kalshi.use"
+      "bundleIdentifier": "com.kalshi.use",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B1120"
       },
-      "package": "com.kalshi.use"
+      "package": "com.kalshi.use",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera to scan Kalshi markets."
+        }
+      ],
       [
         "expo-image-picker",
         {
@@ -36,6 +54,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "445405bc-31fd-4157-b646-0171a9b57114"
+      }
     }
   }
 }

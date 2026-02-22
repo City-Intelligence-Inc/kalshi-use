@@ -15,6 +15,8 @@ class ModelRunner(ABC):
     display_name: str
     description: str
     status: str = "available"
+    input_type: str = "image"        # "image", "text", "image+text"
+    output_type: str = "prediction"  # "text", "prediction", "structured"
 
     @abstractmethod
     def run(self, image_key: str, context: str | None) -> dict:

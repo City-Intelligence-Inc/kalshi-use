@@ -15,7 +15,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Prediction, Factor, EvScenario, TradeLogCreate } from "../../lib/types";
+import { Prediction, Factor, EvScenario, TradeLogCreate, MarketData } from "../../lib/types";
 import { updatePrediction, createTrade } from "../../lib/api";
 
 if (Platform.OS === "android") {
@@ -147,6 +147,149 @@ function EvTable({ scenarios, side }: { scenarios: EvScenario[]; side: string })
           </View>
         );
       })}
+    </View>
+  );
+}
+
+// ── Live Market Data ──
+
+function PriceCell({ label, value, color }: { label: string; value?: number | null; color?: string }) {
+  return (
+    <View style={liveStyles.priceCell}>
+      <Text style={liveStyles.priceCellLabel}>{label}</Text>
+      <Text style={[liveStyles.priceCellValue, color ? { color } : undefined]}>
+        {value != null ? `${value}¢` : "—"}
+      </Text>
+    </View>
+  );
+}
+
+function DepthBar({ yesDepth, noDepth }: { yesDepth: number; noDepth: number }) {
+  const total = yesDepth + noDepth;
+  if (total === 0) return null;
+  const yesPct = (yesDepth / total) * 100;
+
+  return (
+    <View style={liveStyles.depthContainer}>
+      <Text style={liveStyles.depthLabel}>Orderbook depth</Text>
+      <View style={liveStyles.depthBarTrack}>
+        <View style={[liveStyles.depthBarYes, { width: `${yesPct}%` }]} />
+        <View style={[liveStyles.depthBarNo, { width: `${100 - yesPct}%` }]} />
+      </View>
+      <View style={liveStyles.depthLegend}>
+        <Text style={liveStyles.depthLegendYes}>YES {yesDepth}</Text>
+        <Text style={liveStyles.depthLegendNo}>NO {noDepth}</Text>
+      </View>
+    </View>
+  );
+}
+
+function LiveMarketSection({ data }: { data: MarketData }) {
+  if (data.status === "not_found") {
+    return (
+      <View style={liveStyles.warningRow}>
+        <Ionicons name="warning-outline" size={16} color="#EAB308" />
+        <Text style={liveStyles.warningText}>
+          Ticker not found on Kalshi — prices may be outdated
+        </Text>
+      </View>
+    );
+  }
+
+  if (data.status === "error") {
+    return (
+      <View style={liveStyles.warningRow}>
+        <Ionicons name="cloud-offline-outline" size={16} color="#64748B" />
+        <Text style={liveStyles.warningText}>
+          Live data unavailable — Kalshi API unreachable
+        </Text>
+      </View>
+    );
+  }
+
+  const isLive = data.market_status === "active" || data.market_status === "open";
+  const delta = data.price_delta;
+
+  return (
+    <View>
+      {/* Status badge + 24h delta */}
+      <View style={liveStyles.statusRow}>
+        <View style={[liveStyles.statusBadge, { backgroundColor: isLive ? "#22C55E20" : "#64748B20" }]}>
+          <View style={[liveStyles.statusDot, { backgroundColor: isLive ? "#22C55E" : "#64748B" }]} />
+          <Text style={[liveStyles.statusText, { color: isLive ? "#22C55E" : "#64748B" }]}>
+            {isLive ? "LIVE" : (data.market_status ?? "CLOSED").toUpperCase()}
+          </Text>
+        </View>
+        {delta != null && delta !== 0 && (
+          <View style={[liveStyles.deltaPill, { backgroundColor: delta > 0 ? "#22C55E18" : "#EF444418" }]}>
+            <Ionicons
+              name={delta > 0 ? "arrow-up" : "arrow-down"}
+              size={12}
+              color={delta > 0 ? "#22C55E" : "#EF4444"}
+            />
+            <Text style={{ color: delta > 0 ? "#22C55E" : "#EF4444", fontSize: 12, fontWeight: "700" }}>
+              {delta > 0 ? "+" : ""}{delta}¢ 24h
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Price grid */}
+      <View style={liveStyles.priceGrid}>
+        <View style={liveStyles.priceRow}>
+          <PriceCell label="YES BID" value={data.yes_bid} color="#22C55E" />
+          <PriceCell label="YES ASK" value={data.yes_ask} color="#22C55E" />
+          <PriceCell label="SPREAD" value={data.spread} />
+        </View>
+        <View style={liveStyles.priceRow}>
+          <PriceCell label="NO BID" value={data.no_bid} color="#EF4444" />
+          <PriceCell label="NO ASK" value={data.no_ask} color="#EF4444" />
+          <PriceCell label="LAST" value={data.last_price} />
+        </View>
+      </View>
+
+      {/* Volume row */}
+      {(data.volume != null || data.open_interest != null) && (
+        <View style={liveStyles.volumeRow}>
+          {data.volume != null && (
+            <View style={liveStyles.volumeItem}>
+              <Text style={liveStyles.volumeLabel}>Volume</Text>
+              <Text style={liveStyles.volumeValue}>{data.volume.toLocaleString()}</Text>
+            </View>
+          )}
+          {data.volume_24h != null && (
+            <View style={liveStyles.volumeItem}>
+              <Text style={liveStyles.volumeLabel}>24h Vol</Text>
+              <Text style={liveStyles.volumeValue}>{data.volume_24h.toLocaleString()}</Text>
+            </View>
+          )}
+          {data.open_interest != null && (
+            <View style={liveStyles.volumeItem}>
+              <Text style={liveStyles.volumeLabel}>Open Interest</Text>
+              <Text style={liveStyles.volumeValue}>{data.open_interest.toLocaleString()}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Orderbook depth bar */}
+      {data.yes_depth != null && data.no_depth != null && (
+        <DepthBar yesDepth={data.yes_depth} noDepth={data.no_depth} />
+      )}
+
+      {/* Event context */}
+      {data.event_title && (
+        <View style={liveStyles.eventContext}>
+          <Text style={liveStyles.eventLabel}>Event</Text>
+          <Text style={liveStyles.eventTitle}>{data.event_title}</Text>
+          {data.related_market_count != null && data.related_market_count > 1 && (
+            <Text style={liveStyles.eventSub}>
+              {data.related_market_count} related markets
+              {data.mutually_exclusive ? " · mutually exclusive" : ""}
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -381,6 +524,23 @@ export default function PredictResultCard({
           <View style={styles.bearCard}>
             <Text style={styles.bodyText}>{rec.bear_case}</Text>
           </View>
+        </ToggleSection>
+      )}
+
+      {/* ═══ Live Market Data ═══ */}
+      {prediction.market_data && (
+        <ToggleSection
+          title="Live market data"
+          icon="pulse-outline"
+          badge={
+            prediction.market_data.status === "found"
+              ? { text: "LIVE", color: "#22C55E" }
+              : prediction.market_data.status === "not_found"
+                ? { text: "NOT FOUND", color: "#EAB308" }
+                : { text: "ERROR", color: "#64748B" }
+          }
+        >
+          <LiveMarketSection data={prediction.market_data} />
         </ToggleSection>
       )}
 
@@ -1009,5 +1169,169 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 12,
     marginBottom: 24,
+  },
+});
+
+// ── Live Market Data Styles ──
+
+const liveStyles = StyleSheet.create({
+  warningRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(234,179,8,0.06)",
+    padding: 12,
+    borderRadius: 8,
+  },
+  warningText: {
+    color: "#EAB308",
+    fontSize: 13,
+    flex: 1,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  deltaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  priceGrid: {
+    gap: 6,
+    marginBottom: 14,
+  },
+  priceRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  priceCell: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  priceCellLabel: {
+    color: "#475569",
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  priceCellValue: {
+    color: "#CBD5E1",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  volumeRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 14,
+  },
+  volumeItem: {
+    flex: 1,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 8,
+    paddingVertical: 8,
+  },
+  volumeLabel: {
+    color: "#475569",
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  volumeValue: {
+    color: "#94A3B8",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  depthContainer: {
+    marginBottom: 14,
+  },
+  depthLabel: {
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  depthBarTrack: {
+    flexDirection: "row",
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  depthBarYes: {
+    backgroundColor: "#22C55E",
+  },
+  depthBarNo: {
+    backgroundColor: "#EF4444",
+  },
+  depthLegend: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  depthLegendYes: {
+    color: "#22C55E",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  depthLegendNo: {
+    color: "#EF4444",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  eventContext: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+    paddingTop: 12,
+  },
+  eventLabel: {
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  eventTitle: {
+    color: "#94A3B8",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  eventSub: {
+    color: "#475569",
+    fontSize: 11,
+    marginTop: 4,
   },
 });

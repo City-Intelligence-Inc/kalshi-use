@@ -87,8 +87,8 @@ class PredictionRecommendation(BaseModel):
 class Prediction(BaseModel):
     prediction_id: str
     user_id: str
-    image_key: str
-    image_url: str
+    image_key: Optional[str] = None
+    image_url: Optional[str] = None
     context: Optional[str] = None
     model: str
     status: str  # "processing", "completed"
@@ -104,6 +104,23 @@ class PredictionUpdate(BaseModel):
     context: Optional[str] = None
     user_notes: Optional[str] = None
     model_idea: Optional[str] = None
+
+
+class IdeaCreate(BaseModel):
+    """A manually submitted trade idea — like a quant researcher's thesis."""
+    user_id: str
+    ticker: str
+    title: Optional[str] = None
+    side: str  # "yes" or "no"
+    confidence: float  # 0-1
+    reasoning: str
+    factors: Optional[list[Factor]] = None
+    ev_analysis: Optional[list[EvScenario]] = None
+    bear_case: Optional[str] = None
+    recommended_position: Optional[float] = None
+    no_bet: Optional[bool] = False
+    no_bet_reason: Optional[str] = None
+    user_notes: Optional[str] = None
 
 
 # ── Model info ──

@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ModelInfo, Prediction, PredictionUpdate, Snapshot, TradeLog, TradeLogCreate } from "./types";
+import { IdeaCreate, ModelInfo, Prediction, PredictionUpdate, Snapshot, TradeLog, TradeLogCreate } from "./types";
 
 const ENDPOINTS = {
   production: "https://cuxaxyzbcm.us-east-1.awsapprunner.com",
@@ -163,6 +163,13 @@ export async function getPredictions(userId: string): Promise<Prediction[]> {
 
 export async function getPredictionLog(): Promise<Prediction[]> {
   return request<Prediction[]>("/predictions/log");
+}
+
+export async function submitIdea(idea: IdeaCreate): Promise<Prediction> {
+  return request<Prediction>("/predictions/idea", {
+    method: "POST",
+    body: JSON.stringify(idea),
+  });
 }
 
 // Snapshot endpoints

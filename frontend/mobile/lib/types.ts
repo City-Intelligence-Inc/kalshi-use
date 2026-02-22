@@ -79,8 +79,8 @@ export interface PredictionRecommendation {
 export interface Prediction {
   prediction_id: string;
   user_id: string;
-  image_key: string;
-  image_url: string;
+  image_key?: string;
+  image_url?: string;
   context?: string;
   model: string;
   status: string;
@@ -96,6 +96,22 @@ export interface PredictionUpdate {
   context?: string;
   user_notes?: string;
   model_idea?: string;
+}
+
+export interface IdeaCreate {
+  user_id: string;
+  ticker: string;
+  title?: string;
+  side: "yes" | "no";
+  confidence: number;
+  reasoning: string;
+  factors?: Factor[];
+  ev_analysis?: EvScenario[];
+  bear_case?: string;
+  recommended_position?: number;
+  no_bet?: boolean;
+  no_bet_reason?: string;
+  user_notes?: string;
 }
 
 export interface ModelInfo {

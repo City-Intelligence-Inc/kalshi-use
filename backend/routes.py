@@ -28,6 +28,7 @@ from backend.models import get_model, list_models
 from backend.notifications import send_push
 from backend.prediction_log import log_prediction
 from backend.pydantic_models import (
+    IdeaCreate,
     InputResponse,
     MarketSnapshot,
     MarketSnapshotCreate,
@@ -398,6 +399,58 @@ def update_prediction_endpoint(prediction_id: str, updates: PredictionUpdate):
     fields["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = update_prediction(prediction_id, fields)
     return result
+
+
+@router.post("/predictions/idea", response_model=Prediction)
+def create_idea(idea: IdeaCreate):
+    """Create a manual trade idea — a quant researcher's thesis, no image needed."""
+    prediction_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    recommendation = {
+        "ticker": idea.ticker,
+        "title": idea.title,
+        "side": idea.side,
+        "confidence": idea.confidence,
+        "reasoning": idea.reasoning,
+        "factors": [f.model_dump() for f in idea.factors] if idea.factors else [],
+        "ev_analysis": [e.model_dump() for e in idea.ev_analysis] if idea.ev_analysis else [],
+        "bear_case": idea.bear_case,
+        "recommended_position": idea.recommended_position,
+        "no_bet": idea.no_bet or False,
+        "no_bet_reason": idea.no_bet_reason,
+    }
+
+    prediction = {
+        "prediction_id": prediction_id,
+        "user_id": idea.user_id,
+        "image_key": "",
+        "image_url": "",
+        "model": "manual",
+        "status": "completed",
+        "recommendation": recommendation,
+        "user_notes": idea.user_notes,
+        "created_at": now,
+        "completed_at": now,
+    }
+    put_prediction(prediction)
+
+    # Log to local JSONL
+    try:
+        log_prediction({
+            "prediction_id": prediction_id,
+            "model": "manual",
+            "user_id": idea.user_id,
+            "status": "completed",
+            "ticker": idea.ticker,
+            "side": idea.side,
+            "confidence": idea.confidence,
+            "completed_at": now,
+        })
+    except Exception:
+        logger.exception("Failed to write prediction log for idea %s", prediction_id)
+
+    return prediction
 
 
 @router.get("/predictions/log")

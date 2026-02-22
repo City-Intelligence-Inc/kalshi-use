@@ -93,8 +93,17 @@ class Prediction(BaseModel):
     model: str
     status: str  # "processing", "completed"
     recommendation: Optional[PredictionRecommendation] = None
+    user_notes: Optional[str] = None    # user-editable notes after analysis
+    model_idea: Optional[str] = None    # user-submitted model/analysis idea
     created_at: str
     completed_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class PredictionUpdate(BaseModel):
+    context: Optional[str] = None
+    user_notes: Optional[str] = None
+    model_idea: Optional[str] = None
 
 
 # ── Model info ──

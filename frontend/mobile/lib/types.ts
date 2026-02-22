@@ -85,8 +85,17 @@ export interface Prediction {
   model: string;
   status: string;
   recommendation?: PredictionRecommendation;
+  user_notes?: string;
+  model_idea?: string;
   created_at: string;
   completed_at?: string;
+  updated_at?: string;
+}
+
+export interface PredictionUpdate {
+  context?: string;
+  user_notes?: string;
+  model_idea?: string;
 }
 
 export interface ModelInfo {
@@ -100,4 +109,13 @@ export interface AgentConfig {
   market: "kalshi" | "polymarket";
   strategy: string;
   active: boolean;
+}
+
+// Snapshot models
+
+export interface Snapshot {
+  event_ticker: string;
+  category: string;
+  snapshot_data: Record<string, any>;
+  created_at: string;
 }

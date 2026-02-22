@@ -1,21 +1,51 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ModelInfo, Prediction, TradeLog, TradeLogCreate } from "./types";
+import { ModelInfo, Prediction, PredictionUpdate, Snapshot, TradeLog, TradeLogCreate } from "./types";
 
-const API_BASE_URL = __DEV__
-  ? "http://192.168.7.179:8000"
-  : "https://cuxaxyzbcm.us-east-1.awsapprunner.com";
+const ENDPOINTS = {
+  production: "https://cuxaxyzbcm.us-east-1.awsapprunner.com",
+  local: "http://192.168.7.179:8000",
+} as const;
+
+export type EndpointKey = keyof typeof ENDPOINTS;
+
+const ENDPOINT_STORAGE_KEY = "api_endpoint";
+
+let _cachedEndpoint: EndpointKey | null = null;
+
+export async function getEndpoint(): Promise<EndpointKey> {
+  if (_cachedEndpoint) return _cachedEndpoint;
+  const stored = await AsyncStorage.getItem(ENDPOINT_STORAGE_KEY);
+  if (stored === "local" || stored === "production") {
+    _cachedEndpoint = stored;
+    return stored;
+  }
+  const defaultEndpoint: EndpointKey = __DEV__ ? "local" : "production";
+  _cachedEndpoint = defaultEndpoint;
+  return defaultEndpoint;
+}
+
+export async function setEndpoint(key: EndpointKey): Promise<void> {
+  _cachedEndpoint = key;
+  await AsyncStorage.setItem(ENDPOINT_STORAGE_KEY, key);
+}
+
+async function getBaseUrl(): Promise<string> {
+  const key = await getEndpoint();
+  return ENDPOINTS[key];
+}
 
 async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const baseUrl = await getBaseUrl();
   const token = await AsyncStorage.getItem("auth_token");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(`${baseUrl}${path}`, {
     ...options,
     headers: { ...headers, ...(options.headers as Record<string, string>) },
   });
@@ -94,7 +124,8 @@ export async function submitPrediction(
     formData.append("expo_push_token", expoPushToken);
   }
 
-  const res = await fetch(`${API_BASE_URL}/predict`, {
+  const baseUrl = await getBaseUrl();
+  const res = await fetch(`${baseUrl}/predict`, {
     method: "POST",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -114,9 +145,41 @@ export async function getPrediction(predictionId: string): Promise<Prediction> {
   return request<Prediction>(`/predictions/${predictionId}`);
 }
 
+export async function updatePrediction(
+  predictionId: string,
+  updates: PredictionUpdate
+): Promise<Prediction> {
+  return request<Prediction>(`/predictions/${predictionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
 export async function getPredictions(userId: string): Promise<Prediction[]> {
   return request<Prediction[]>(
     `/predictions?user_id=${encodeURIComponent(userId)}`
+  );
+}
+
+export async function getPredictionLog(): Promise<Prediction[]> {
+  return request<Prediction[]>("/predictions/log");
+}
+
+// Snapshot endpoints
+
+export async function getSnapshots(category: string): Promise<Snapshot[]> {
+  return request<Snapshot[]>(
+    `/snapshots?category=${encodeURIComponent(category)}`
+  );
+}
+
+export async function getSnapshotsByTicker(ticker: string): Promise<Snapshot[]> {
+  return request<Snapshot[]>(`/snapshots/${encodeURIComponent(ticker)}`);
+}
+
+export async function getLatestSnapshot(ticker: string): Promise<Snapshot> {
+  return request<Snapshot>(
+    `/snapshots/${encodeURIComponent(ticker)}/latest`
   );
 }
 

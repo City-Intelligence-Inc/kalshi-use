@@ -34,6 +34,7 @@ from backend.pydantic_models import (
     ModelInfo,
     OutputRequest,
     Prediction,
+    PredictionUpdate,
     TradeLog,
     TradeLogCreate,
     TradeLogUpdate,
@@ -381,6 +382,22 @@ async def create_prediction(
     )
 
     return prediction
+
+
+@router.patch("/predictions/{prediction_id}", response_model=Prediction)
+def update_prediction_endpoint(prediction_id: str, updates: PredictionUpdate):
+    """Edit a prediction's context, user notes, or model idea."""
+    existing = get_prediction(prediction_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Prediction not found")
+
+    fields = {k: v for k, v in updates.model_dump().items() if v is not None}
+    if not fields:
+        return existing
+
+    fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = update_prediction(prediction_id, fields)
+    return result
 
 
 @router.get("/predictions/log")

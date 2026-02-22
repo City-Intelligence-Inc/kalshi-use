@@ -140,3 +140,28 @@ export interface KalshiFill {
   no_price: number;
   created_time: string;
 }
+
+// ── Tracked Positions ──
+
+export interface TrackedPosition {
+  position_id: string;
+  user_id: string;
+  prediction_id: string;
+  ticker: string;
+  side: string;
+  entry_price: number;
+  title?: string;
+  model?: string;
+  confidence?: number;
+  image_key?: string;
+  status: "active" | "settled_win" | "settled_loss" | "closed";
+  current_price?: number;
+  unrealized_pnl?: number;
+  market_status?: string;
+  market_result?: string;
+  settlement_price?: number;
+  realized_pnl?: number;
+  settled_at?: string;
+  created_at: string;
+  updated_at?: string;
+}

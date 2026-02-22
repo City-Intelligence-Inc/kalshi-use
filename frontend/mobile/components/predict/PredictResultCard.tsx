@@ -19,7 +19,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Prediction, Factor, EvScenario, MarketData } from "../../lib/types";
-import { updatePrediction } from "../../lib/api";
+import { acceptTrade, updatePrediction } from "../../lib/api";
 
 if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -533,8 +533,32 @@ export default function PredictResultCard({
               <Pressable
                 style={styles.acceptButton}
                 disabled={accepting}
-                onPress={() => {
-                  setAccepted(true);
+                onPress={async () => {
+                  setAccepting(true);
+                  try {
+                    const md = prediction.market_data;
+                    const entryPrice =
+                      rec.side === "yes"
+                        ? md?.yes_ask ?? md?.last_price ?? 50
+                        : md?.no_ask ?? (md?.yes_bid != null ? 100 - md.yes_bid : md?.last_price != null ? 100 - md.last_price : 50);
+
+                    await acceptTrade({
+                      user_id: prediction.user_id,
+                      prediction_id: prediction.prediction_id,
+                      ticker: rec.ticker,
+                      side: rec.side,
+                      entry_price: entryPrice,
+                      title: rec.title,
+                      model: prediction.model,
+                      confidence: rec.confidence,
+                      image_key: prediction.image_key,
+                    });
+                    setAccepted(true);
+                  } catch (e: any) {
+                    Alert.alert("Error", e.message ?? "Failed to accept trade");
+                  } finally {
+                    setAccepting(false);
+                  }
                 }}
               >
                 {accepting ? (

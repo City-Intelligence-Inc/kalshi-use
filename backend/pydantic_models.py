@@ -168,3 +168,41 @@ class KalshiFill(BaseModel):
     yes_price: int
     no_price: int
     created_time: str
+
+
+# ── Tracked Positions ──
+
+
+class TrackedPositionCreate(BaseModel):
+    user_id: str
+    prediction_id: str
+    ticker: str
+    side: str  # "yes" or "no"
+    entry_price: float  # cents
+    title: Optional[str] = None
+    model: Optional[str] = None
+    confidence: Optional[float] = None
+    image_key: Optional[str] = None
+
+
+class TrackedPosition(BaseModel):
+    position_id: str
+    user_id: str
+    prediction_id: str
+    ticker: str
+    side: str
+    entry_price: float
+    title: Optional[str] = None
+    model: Optional[str] = None
+    confidence: Optional[float] = None
+    image_key: Optional[str] = None
+    status: str  # "active", "settled_win", "settled_loss", "closed"
+    current_price: Optional[float] = None
+    unrealized_pnl: Optional[float] = None
+    market_status: Optional[str] = None
+    market_result: Optional[str] = None
+    settlement_price: Optional[float] = None
+    realized_pnl: Optional[float] = None
+    settled_at: Optional[str] = None
+    created_at: str
+    updated_at: Optional[str] = None

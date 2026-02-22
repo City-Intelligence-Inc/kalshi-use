@@ -8,16 +8,21 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from backend.db import (
     append_analysis_log,
     delete_integration,
+    delete_tracked_position,
     get_integrations_by_user,
     get_prediction,
     get_predictions_by_user,
     get_presigned_url,
+    get_tracked_position,
+    get_tracked_positions_by_user,
     put_integration,
     put_prediction,
+    put_tracked_position,
     update_prediction,
+    update_tracked_position,
     upload_image,
 )
-from backend.kalshi_api import enrich_prediction, match_market
+from backend.kalshi_api import enrich_prediction, fetch_market, match_market
 from backend.models import get_model, list_models
 from backend.notifications import send_push
 from backend.prediction_log import log_prediction
@@ -32,6 +37,8 @@ from backend.pydantic_models import (
     OutputRequest,
     Prediction,
     PredictionUpdate,
+    TrackedPosition,
+    TrackedPositionCreate,
 )
 
 logger = logging.getLogger(__name__)
@@ -556,6 +563,144 @@ def read_prediction(prediction_id: str):
 @router.get("/predictions", response_model=list[Prediction])
 def list_predictions(user_id: str = Query(...)):
     return get_predictions_by_user(user_id)
+
+
+# ── Tracked Positions ──
+
+
+# In-memory cache for market data (ticker -> (timestamp, data))
+_market_cache: dict[str, tuple[float, dict]] = {}
+_CACHE_TTL = 30.0  # seconds
+
+
+def _fetch_market_cached(ticker: str) -> dict | None:
+    import time
+
+    now = time.time()
+    cached = _market_cache.get(ticker)
+    if cached and (now - cached[0]) < _CACHE_TTL:
+        return cached[1]
+    data = fetch_market(ticker)
+    if data is not None:
+        _market_cache[ticker] = (now, data)
+    return data
+
+
+def _enrich_tracked_position(pos: dict) -> dict:
+    """Enrich an active tracked position with live market data."""
+    if pos.get("status") != "active":
+        return pos
+
+    ticker = pos.get("ticker")
+    if not ticker:
+        return pos
+
+    market = _fetch_market_cached(ticker)
+    if not market:
+        return pos
+
+    pos["market_status"] = market.get("status")
+    pos["market_result"] = market.get("result")
+
+    # Current price (yes_ask for display)
+    yes_price = market.get("yes_ask") or market.get("last_price")
+    if yes_price is not None:
+        if pos["side"] == "yes":
+            pos["current_price"] = yes_price
+            pos["unrealized_pnl"] = round(yes_price - pos["entry_price"], 2)
+        else:
+            no_price = 100 - yes_price
+            pos["current_price"] = no_price
+            pos["unrealized_pnl"] = round(no_price - pos["entry_price"], 2)
+
+    # Auto-detect settlement
+    result = market.get("result")
+    if result in ("yes", "no"):
+        now = datetime.now(timezone.utc).isoformat()
+        if pos["side"] == result:
+            settlement_price = 100
+            realized_pnl = round(settlement_price - pos["entry_price"], 2)
+            status = "settled_win"
+        else:
+            settlement_price = 0
+            realized_pnl = round(-pos["entry_price"], 2)
+            status = "settled_loss"
+
+        pos["status"] = status
+        pos["settlement_price"] = settlement_price
+        pos["realized_pnl"] = realized_pnl
+        pos["settled_at"] = now
+        pos["current_price"] = settlement_price
+        pos["unrealized_pnl"] = None
+
+        # Persist settlement to DB
+        update_tracked_position(pos["position_id"], {
+            "status": status,
+            "settlement_price": settlement_price,
+            "realized_pnl": realized_pnl,
+            "settled_at": now,
+            "updated_at": now,
+        })
+
+    return pos
+
+
+@router.post("/tracked-positions", response_model=TrackedPosition)
+def create_tracked_position(req: TrackedPositionCreate):
+    """Accept a prediction — create a tracked position."""
+    now = datetime.now(timezone.utc).isoformat()
+    position = {
+        "position_id": str(uuid.uuid4()),
+        "user_id": req.user_id,
+        "prediction_id": req.prediction_id,
+        "ticker": req.ticker,
+        "side": req.side,
+        "entry_price": req.entry_price,
+        "title": req.title,
+        "model": req.model,
+        "confidence": req.confidence,
+        "image_key": req.image_key,
+        "status": "active",
+        "created_at": now,
+    }
+    put_tracked_position(position)
+    return position
+
+
+@router.get("/tracked-positions", response_model=list[TrackedPosition])
+def list_tracked_positions(user_id: str = Query(...)):
+    """List tracked positions with live price enrichment."""
+    positions = get_tracked_positions_by_user(user_id)
+
+    # Enrich active positions with live data
+    for pos in positions:
+        _enrich_tracked_position(pos)
+
+    # Sort: active first (newest), then settled (newest)
+    def sort_key(p):
+        is_active = 0 if p.get("status") == "active" else 1
+        return (is_active, -(datetime.fromisoformat(p.get("created_at", "2000-01-01")).timestamp()))
+
+    positions.sort(key=sort_key)
+    return positions
+
+
+@router.delete("/tracked-positions/{position_id}")
+def close_tracked_position(position_id: str):
+    """Close/untrack a position."""
+    pos = get_tracked_position(position_id)
+    if not pos:
+        raise HTTPException(status_code=404, detail="Position not found")
+
+    if pos.get("status") == "active":
+        now = datetime.now(timezone.utc).isoformat()
+        update_tracked_position(position_id, {
+            "status": "closed",
+            "updated_at": now,
+        })
+
+    delete_tracked_position(position_id)
+    return {"detail": "Position closed"}
 
 
 # ── Debug / Data Explorer ──

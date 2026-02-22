@@ -63,6 +63,8 @@ data "aws_iam_policy_document" "dynamodb_access" {
       "${aws_dynamodb_table.predictions.arn}/index/*",
       aws_dynamodb_table.integrations.arn,
       "${aws_dynamodb_table.integrations.arn}/index/*",
+      aws_dynamodb_table.tracked_positions.arn,
+      "${aws_dynamodb_table.tracked_positions.arn}/index/*",
     ]
   }
 
@@ -209,6 +211,7 @@ resource "aws_apprunner_service" "backend" {
           OPENROUTER_API_KEY       = var.openrouter_api_key
           GEMINI_API_KEY           = var.gemini_api_key
           ENCRYPTION_KEY           = var.encryption_key
+          TRACKED_POSITIONS_TABLE_NAME = aws_dynamodb_table.tracked_positions.name
         }
       }
     }

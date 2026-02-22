@@ -1,27 +1,39 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  SectionList,
   RefreshControl,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { getPositions } from "@/lib/api";
-import { KalshiPosition } from "@/lib/types";
+import { getPositions, getTrackedPositions } from "@/lib/api";
+import { KalshiPosition, TrackedPosition } from "@/lib/types";
 import PositionCard from "@/components/PositionCard";
+import TrackedPositionCard from "@/components/TrackedPositionCard";
 
 const USER_ID = "demo-user-1";
+const REFRESH_INTERVAL = 30_000;
+
+type Section =
+  | { title: string; type: "tracked"; data: TrackedPosition[] }
+  | { title: string; type: "live"; data: KalshiPosition[] };
 
 export default function PositionsScreen() {
-  const [positions, setPositions] = useState<KalshiPosition[]>([]);
+  const [tracked, setTracked] = useState<TrackedPosition[]>([]);
+  const [live, setLive] = useState<KalshiPosition[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      const data = await getPositions(USER_ID);
-      setPositions(data);
+      const [trackedData, liveData] = await Promise.all([
+        getTrackedPositions(USER_ID).catch(() => [] as TrackedPosition[]),
+        getPositions(USER_ID).catch(() => [] as KalshiPosition[]),
+      ]);
+      setTracked(trackedData);
+      setLive(liveData);
     } catch {
       // silent
     } finally {
@@ -35,29 +47,62 @@ export default function PositionsScreen() {
     setRefreshing(false);
   }, [loadData]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Load on focus + auto-refresh every 30s while focused
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+      const interval = setInterval(loadData, REFRESH_INTERVAL);
+      return () => clearInterval(interval);
+    }, [loadData])
+  );
 
-  if (!loading && positions.length === 0) {
+  const isEmpty = !loading && tracked.length === 0 && live.length === 0;
+
+  if (isEmpty) {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="bar-chart-outline" size={48} color="#475569" />
-        <Text style={styles.emptyTitle}>No open positions</Text>
+        <Text style={styles.emptyTitle}>No positions yet</Text>
         <Text style={styles.emptySubtitle}>
-          Your Kalshi positions will appear here
+          Accept a prediction to start tracking, or connect your Kalshi account
         </Text>
       </View>
     );
   }
 
+  const sections: Section[] = [];
+  if (tracked.length > 0) {
+    sections.push({ title: "Tracked", type: "tracked", data: tracked });
+  }
+  if (live.length > 0) {
+    sections.push({ title: "Live Positions", type: "live", data: live });
+  }
+
   return (
-    <FlatList
+    <SectionList
       style={styles.container}
       contentContainerStyle={styles.content}
-      data={positions}
-      keyExtractor={(item) => item.ticker}
-      renderItem={({ item }) => <PositionCard position={item} />}
+      sections={sections}
+      keyExtractor={(item, index) => {
+        if ("position_id" in item) return item.position_id;
+        return (item as KalshiPosition).ticker + index;
+      }}
+      renderItem={({ item, section }) => {
+        if ((section as Section).type === "tracked") {
+          return (
+            <TrackedPositionCard
+              position={item as TrackedPosition}
+              onClosed={loadData}
+            />
+          );
+        }
+        return <PositionCard position={item as KalshiPosition} />;
+      }}
+      renderSectionHeader={({ section }) => (
+        <Text style={styles.sectionHeader}>
+          {section.title} ({section.data.length})
+        </Text>
+      )}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -66,10 +111,9 @@ export default function PositionsScreen() {
         />
       }
       ListHeaderComponent={
-        <Text style={styles.heading}>
-          Positions{positions.length > 0 ? ` (${positions.length})` : ""}
-        </Text>
+        <Text style={styles.heading}>Positions</Text>
       }
+      stickySectionHeadersEnabled={false}
     />
   );
 }
@@ -87,6 +131,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FFFFFF",
     marginBottom: 16,
+  },
+  sectionHeader: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginTop: 8,
+    marginBottom: 10,
   },
   emptyContainer: {
     flex: 1,

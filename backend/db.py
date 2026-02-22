@@ -29,6 +29,7 @@ TABLE_NAME = os.environ.get("TABLE_NAME", "kalshi-use-trading-logs")
 SNAPSHOTS_TABLE_NAME = os.environ.get("SNAPSHOTS_TABLE_NAME", "kalshi-use-market-snapshots")
 PREDICTIONS_TABLE_NAME = os.environ.get("PREDICTIONS_TABLE_NAME", "kalshi-use-predictions")
 INTEGRATIONS_TABLE_NAME = os.environ.get("INTEGRATIONS_TABLE_NAME", "kalshi-use-integrations")
+TRACKED_POSITIONS_TABLE_NAME = os.environ.get("TRACKED_POSITIONS_TABLE_NAME", "kalshi-use-tracked-positions")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", "kalshi-use-images")
 LOCAL_IMAGE_DIR = Path("/tmp/kalshi-images")
 
@@ -37,6 +38,7 @@ table = dynamodb.Table(TABLE_NAME)
 snapshots_table = dynamodb.Table(SNAPSHOTS_TABLE_NAME)
 predictions_table = dynamodb.Table(PREDICTIONS_TABLE_NAME)
 integrations_table = dynamodb.Table(INTEGRATIONS_TABLE_NAME)
+tracked_positions_table = dynamodb.Table(TRACKED_POSITIONS_TABLE_NAME)
 
 # S3 client — always attempt S3 in production (App Runner provides IAM role).
 # Fall back to local only when no AWS credentials are configured at all.
@@ -310,4 +312,52 @@ def delete_integration(user_id: str, platform_account: str) -> bool:
     integrations_table.delete_item(
         Key={"user_id": user_id, "platform_account": platform_account},
     )
+    return True
+
+
+# ── Tracked Positions ──
+
+
+def put_tracked_position(position: dict) -> dict:
+    tracked_positions_table.put_item(Item=_floats_to_decimals(position))
+    return position
+
+
+def get_tracked_position(position_id: str) -> dict | None:
+    resp = tracked_positions_table.get_item(Key={"position_id": position_id})
+    item = resp.get("Item")
+    return _decimals_to_floats(item) if item else None
+
+
+def get_tracked_positions_by_user(user_id: str) -> list[dict]:
+    resp = tracked_positions_table.query(
+        IndexName="user_id-index",
+        KeyConditionExpression=Key("user_id").eq(user_id),
+    )
+    return _decimals_to_floats(resp.get("Items", []))
+
+
+def update_tracked_position(position_id: str, updates: dict) -> dict | None:
+    fields = {k: v for k, v in updates.items() if v is not None}
+    if not fields:
+        return get_tracked_position(position_id)
+    expr_parts = []
+    expr_names = {}
+    expr_values = {}
+    for i, (key, val) in enumerate(fields.items()):
+        expr_parts.append(f"#{key} = :val{i}")
+        expr_names[f"#{key}"] = key
+        expr_values[f":val{i}"] = _floats_to_decimals(val)
+    resp = tracked_positions_table.update_item(
+        Key={"position_id": position_id},
+        UpdateExpression="SET " + ", ".join(expr_parts),
+        ExpressionAttributeNames=expr_names,
+        ExpressionAttributeValues=expr_values,
+        ReturnValues="ALL_NEW",
+    )
+    return _decimals_to_floats(resp.get("Attributes"))
+
+
+def delete_tracked_position(position_id: str) -> bool:
+    tracked_positions_table.delete_item(Key={"position_id": position_id})
     return True

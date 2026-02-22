@@ -7,6 +7,7 @@ import {
   ModelInfo,
   Prediction,
   PredictionUpdate,
+  TrackedPosition,
 } from "./types";
 
 const ENDPOINTS = {
@@ -245,4 +246,39 @@ export async function getFills(
   return request<KalshiFill[]>(
     `/portfolio/${encodeURIComponent(userId)}/fills?limit=${limit}`
   );
+}
+
+// ── Tracked Positions ──
+
+export async function acceptTrade(params: {
+  user_id: string;
+  prediction_id: string;
+  ticker: string;
+  side: string;
+  entry_price: number;
+  title?: string;
+  model?: string;
+  confidence?: number;
+  image_key?: string;
+}): Promise<TrackedPosition> {
+  return request<TrackedPosition>("/tracked-positions", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function getTrackedPositions(
+  userId: string
+): Promise<TrackedPosition[]> {
+  return request<TrackedPosition[]>(
+    `/tracked-positions?user_id=${encodeURIComponent(userId)}`
+  );
+}
+
+export async function closeTrackedPosition(
+  positionId: string
+): Promise<void> {
+  return request(`/tracked-positions/${encodeURIComponent(positionId)}`, {
+    method: "DELETE",
+  });
 }

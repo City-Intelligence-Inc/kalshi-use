@@ -52,8 +52,9 @@ export default function CameraOverlay({
 
       {/* Bottom controls */}
       <View style={[styles.bottomBar, { paddingBottom: 90 + insets.bottom }]}>
-        <Pressable onPress={onGallery} style={styles.sideButton}>
-          <Ionicons name="images-outline" size={26} color="#FFFFFF" />
+        <Pressable onPress={onGallery} style={styles.galleryButton}>
+          <Ionicons name="images-outline" size={22} color="#FFFFFF" />
+          <Text style={styles.galleryText}>Gallery</Text>
         </Pressable>
 
         <ShutterButton onPress={onCapture} disabled={capturing} />
@@ -96,12 +97,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingTop: 16,
   },
-  sideButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
+  galleryButton: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  galleryText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

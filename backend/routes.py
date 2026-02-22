@@ -8,7 +8,6 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from backend.db import (
     append_analysis_log,
     delete_integration,
-    get_analysis_log,
     get_integrations_by_user,
     get_prediction,
     get_predictions_by_user,
@@ -557,3 +556,41 @@ def read_prediction(prediction_id: str):
 @router.get("/predictions", response_model=list[Prediction])
 def list_predictions(user_id: str = Query(...)):
     return get_predictions_by_user(user_id)
+
+
+# ── Debug / Data Explorer ──
+
+
+@router.get("/debug/tables")
+def debug_tables():
+    """Return item counts and recent samples from each DynamoDB table."""
+    from backend.db import (
+        table as trading_table,
+        snapshots_table,
+        predictions_table,
+    )
+
+    def _scan_summary(tbl, sort_key: str | None = None, limit: int = 5):
+        from backend.db import _decimals_to_floats
+        # Get count
+        count_resp = tbl.scan(Select="COUNT")
+        count = count_resp.get("Count", 0)
+        # Get recent items
+        scan_resp = tbl.scan(Limit=limit)
+        items = _decimals_to_floats(scan_resp.get("Items", []))
+        if sort_key:
+            items.sort(key=lambda x: x.get(sort_key, ""), reverse=True)
+        return {"count": count, "recent": items[:limit]}
+
+    return {
+        "predictions": _scan_summary(predictions_table, "created_at"),
+        "trading_logs": _scan_summary(trading_table, "created_at"),
+        "market_snapshots": _scan_summary(snapshots_table, "scraped_at"),
+    }
+
+
+@router.get("/system-prompt")
+def get_system_prompt():
+    """Return the current extraction system prompt used by vision models."""
+    from backend.models.vision_common import EXTRACTION_SYSTEM_PROMPT
+    return {"prompt": EXTRACTION_SYSTEM_PROMPT}

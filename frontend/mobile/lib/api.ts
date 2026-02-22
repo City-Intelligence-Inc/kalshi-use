@@ -161,6 +161,27 @@ export async function pollPrediction(
   throw new Error("Prediction timed out");
 }
 
+// ── Debug / Data Explorer ──
+
+export interface TableSummary {
+  count: number;
+  recent: Record<string, any>[];
+}
+
+export interface TablesResponse {
+  predictions: TableSummary;
+  trading_logs: TableSummary;
+  market_snapshots: TableSummary;
+}
+
+export async function getDebugTables(): Promise<TablesResponse> {
+  return request<TablesResponse>("/debug/tables");
+}
+
+export async function getSystemPrompt(): Promise<{ prompt: string }> {
+  return request<{ prompt: string }>("/system-prompt");
+}
+
 // ── Integrations ──
 
 export async function connectPlatform(

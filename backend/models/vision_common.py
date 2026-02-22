@@ -6,6 +6,37 @@ import re
 
 logger = logging.getLogger(__name__)
 
+
+def _repair_truncated_json(text: str) -> dict | None:
+    """Attempt to parse truncated JSON by closing open structures.
+
+    When an LLM response is cut off mid-JSON, try to salvage what we can
+    by removing the truncated trailing portion and closing braces/brackets.
+    """
+    # Find the last complete key-value pair by looking for the last complete line
+    # that ends with a comma, closing bracket, or value
+    lines = text.split("\n")
+
+    # Try progressively removing lines from the end until we get valid JSON
+    for trim in range(1, min(len(lines), 30)):
+        partial = "\n".join(lines[: len(lines) - trim])
+        # Remove any trailing comma
+        partial = partial.rstrip().rstrip(",")
+        # Count open/close braces and brackets
+        open_braces = partial.count("{") - partial.count("}")
+        open_brackets = partial.count("[") - partial.count("]")
+        # Close them
+        closing = "]" * max(0, open_brackets) + "}" * max(0, open_braces)
+        try:
+            result = json.loads(partial + closing)
+            logger.warning("Repaired truncated JSON (removed %d lines)", trim)
+            return result
+        except json.JSONDecodeError:
+            continue
+
+    return None
+
+
 EXTRACTION_SYSTEM_PROMPT = """\
 You are a Kalshi market analysis assistant. You receive a screenshot — it could be \
 a Kalshi market page, a news headline, a social media post, or any image related to \
@@ -100,11 +131,25 @@ def parse_llm_response(raw_text: str) -> dict:
             try:
                 result = json.loads(match.group())
             except json.JSONDecodeError:
-                logger.error("Failed to parse LLM response as JSON: %s", text[:500])
-                raise ValueError(f"Could not parse LLM response as JSON: {text[:200]}")
+                # Try to repair truncated JSON by closing open braces/brackets
+                repaired = _repair_truncated_json(match.group())
+                if repaired:
+                    result = repaired
+                else:
+                    logger.error("Failed to parse LLM response as JSON: %s", text[:500])
+                    raise ValueError(f"Could not parse LLM response as JSON: {text[:200]}")
         else:
-            logger.error("No JSON object found in LLM response: %s", text[:500])
-            raise ValueError(f"No JSON object found in LLM response: {text[:200]}")
+            # No closing brace — response may be entirely truncated
+            if text.lstrip().startswith("{"):
+                repaired = _repair_truncated_json(text)
+                if repaired:
+                    result = repaired
+                else:
+                    logger.error("Truncated JSON in LLM response: %s", text[:500])
+                    raise ValueError(f"No JSON object found in LLM response: {text[:200]}")
+            else:
+                logger.error("No JSON object found in LLM response: %s", text[:500])
+                raise ValueError(f"No JSON object found in LLM response: {text[:200]}")
 
     # Ensure required fields have defaults
     result.setdefault("ticker", "UNKNOWN")

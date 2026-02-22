@@ -15,8 +15,8 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Prediction, Factor, EvScenario } from "../../lib/types";
-import { updatePrediction } from "../../lib/api";
+import { Prediction, Factor, EvScenario, TradeLogCreate } from "../../lib/types";
+import { updatePrediction, createTrade } from "../../lib/api";
 
 if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -172,6 +172,8 @@ export default function PredictResultCard({
   const [editIdea, setEditIdea] = useState(prediction.model_idea ?? "");
   const [editContext, setEditContext] = useState(prediction.context ?? "");
   const [saving, setSaving] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [accepting, setAccepting] = useState(false);
 
   if (!rec) {
     return (
@@ -194,22 +196,23 @@ export default function PredictResultCard({
   const sideColor = rec.side === "yes" ? "#22C55E" : "#EF4444";
   const oppColor = rec.side === "yes" ? "#EF4444" : "#22C55E";
   const confidencePct = (rec.confidence * 100).toFixed(0);
-  const positionPct = (rec.recommended_position * 100).toFixed(0);
+  const positionPct = ((rec.recommended_position ?? 0) * 100).toFixed(0);
 
-  // Derive break-even from mid EV scenario
-  const midScenario = rec.ev_analysis[Math.floor(rec.ev_analysis.length / 2)];
+  const evScenarios = rec.ev_analysis ?? [];
+  const factors = rec.factors ?? [];
+
   const bestEv =
-    rec.ev_analysis.length > 0
-      ? Math.max(...rec.ev_analysis.map((e) => e.ev_per_contract))
+    evScenarios.length > 0
+      ? Math.max(...evScenarios.map((e) => e.ev_per_contract))
       : 0;
   const maxKelly =
-    rec.ev_analysis.length > 0
-      ? Math.max(...rec.ev_analysis.map((e) => e.kelly_fraction))
+    evScenarios.length > 0
+      ? Math.max(...evScenarios.map((e) => e.kelly_fraction))
       : 0;
 
   // Count factor directions
-  const yesFactors = rec.factors.filter((f) => f.direction === "favors_yes").length;
-  const noFactors = rec.factors.filter((f) => f.direction === "favors_no").length;
+  const yesFactors = factors.filter((f) => f.direction === "favors_yes").length;
+  const noFactors = factors.filter((f) => f.direction === "favors_no").length;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -269,10 +272,66 @@ export default function PredictResultCard({
                 {(maxKelly * 100).toFixed(0)}%
               </Text>
               <Text style={styles.numberSub}>
-                {positionPct}% = {((rec.recommended_position / (maxKelly || 1)) * 100).toFixed(0)}% Kelly
+                {positionPct}% = {(((rec.recommended_position ?? 0) / (maxKelly || 1)) * 100).toFixed(0)}% Kelly
               </Text>
             </View>
           </View>
+        </View>
+      )}
+
+      {/* ═══ Accept / Reject ═══ */}
+      {!rec.no_bet && (
+        <View style={styles.acceptRow}>
+          {accepted ? (
+            <View style={styles.acceptedBanner}>
+              <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+              <Text style={styles.acceptedText}>Trade accepted &amp; logged</Text>
+            </View>
+          ) : (
+            <>
+              <Pressable
+                style={styles.acceptButton}
+                disabled={accepting}
+                onPress={async () => {
+                  setAccepting(true);
+                  try {
+                    const price = rec.confidence * 100; // use confidence as price proxy
+                    const quantity = 1;
+                    const trade: TradeLogCreate = {
+                      user_id: prediction.user_id,
+                      agent_id: prediction.prediction_id,
+                      ticker: rec.ticker,
+                      side: rec.side as "yes" | "no",
+                      action: "buy",
+                      quantity,
+                      price,
+                      total_cost: price * quantity,
+                      status: "pending",
+                    };
+                    await createTrade(trade);
+                    setAccepted(true);
+                  } catch (e: any) {
+                    Alert.alert("Error", e.message ?? "Failed to log trade");
+                  } finally {
+                    setAccepting(false);
+                  }
+                }}
+              >
+                {accepting ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.acceptButtonText}>Accept Trade</Text>
+                  </>
+                )}
+              </Pressable>
+              <Pressable style={styles.rejectButton} onPress={onReset}>
+                <Ionicons name="close-circle-outline" size={18} color="#EF4444" />
+                <Text style={styles.rejectButtonText}>Pass</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       )}
 
@@ -282,7 +341,7 @@ export default function PredictResultCard({
       </ToggleSection>
 
       {/* ═══ EDGE — Factor breakdown ═══ */}
-      {rec.factors.length > 0 && (
+      {factors.length > 0 && (
         <ToggleSection
           title="Edge breakdown"
           icon="stats-chart-outline"
@@ -292,14 +351,14 @@ export default function PredictResultCard({
             color: yesFactors > noFactors ? "#22C55E" : "#EF4444",
           }}
         >
-          {rec.factors.map((f, i) => (
+          {factors.map((f, i) => (
             <FactorRow key={i} factor={f} />
           ))}
         </ToggleSection>
       )}
 
       {/* ═══ SIZING — EV at different probs ═══ */}
-      {rec.ev_analysis.length > 0 && (
+      {evScenarios.length > 0 && (
         <ToggleSection
           title="Sizing scenarios"
           icon="resize-outline"
@@ -312,7 +371,7 @@ export default function PredictResultCard({
             If your true probability estimate is wrong, here's how the trade looks at different levels.
             Positive EV = mispricing in your favor.
           </Text>
-          <EvTable scenarios={rec.ev_analysis} side={rec.side} />
+          <EvTable scenarios={evScenarios} side={rec.side} />
         </ToggleSection>
       )}
 
@@ -617,6 +676,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     marginTop: 12,
+  },
+
+  // ── Accept / Reject ──
+  acceptRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  acceptedBanner: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(34,197,94,0.08)",
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.2)",
+  },
+  acceptedText: {
+    color: "#22C55E",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  acceptButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#22C55E",
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  acceptButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  rejectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(239,68,68,0.08)",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.2)",
+  },
+  rejectButtonText: {
+    color: "#EF4444",
+    fontSize: 15,
+    fontWeight: "600",
   },
 
   // ── Toggle Sections ──

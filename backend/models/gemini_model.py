@@ -53,7 +53,7 @@ class GeminiModel(ModelRunner):
             ],
             config=genai.types.GenerateContentConfig(
                 system_instruction=EXTRACTION_SYSTEM_PROMPT,
-                max_output_tokens=4096,
+                max_output_tokens=8192,
                 temperature=0.2,
             ),
         )

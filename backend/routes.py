@@ -22,7 +22,7 @@ from backend.db import (
     update_tracked_position,
     upload_image,
 )
-from backend.kalshi_api import enrich_prediction, fetch_market, match_market
+from backend.kalshi_api import enrich_prediction, fetch_market, fetch_markets, match_market
 from backend.models import get_model, list_models
 from backend.notifications import send_push
 from backend.prediction_log import log_prediction
@@ -218,6 +218,48 @@ def get_portfolio_fills(user_id: str, limit: int = Query(50, ge=1, le=200)):
     # Sort by time descending
     fills.sort(key=lambda f: f.get("created_time", ""), reverse=True)
     return fills[:limit]
+
+
+# ── Public Markets ──
+
+
+@router.get("/markets")
+def list_markets(
+    status: str = Query("open"),
+    limit: int = Query(200, ge=1, le=1000),
+):
+    """Browse live Kalshi markets (public, no auth). Cached 60s."""
+    all_markets = fetch_markets(status=status, limit=5000)
+    # Filter out zero-liquidity/parlay junk — keep markets with real activity
+    active = [
+        m for m in all_markets
+        if (m.get("volume_24h") or 0) > 0
+        or (m.get("open_interest") or 0) > 0
+        or (m.get("volume") or 0) > 0
+    ]
+    # Sort by 24h volume descending — most active markets first
+    active.sort(key=lambda m: (m.get("volume_24h") or 0), reverse=True)
+    # Return a lightweight subset for the frontend
+    return [
+        {
+            "ticker": m.get("ticker"),
+            "title": m.get("title"),
+            "event_ticker": m.get("event_ticker"),
+            "status": m.get("status"),
+            "yes_bid": m.get("yes_bid"),
+            "yes_ask": m.get("yes_ask"),
+            "no_bid": m.get("no_bid"),
+            "no_ask": m.get("no_ask"),
+            "last_price": m.get("last_price"),
+            "previous_price": m.get("previous_price"),
+            "volume": m.get("volume"),
+            "volume_24h": m.get("volume_24h"),
+            "open_interest": m.get("open_interest"),
+            "close_time": m.get("close_time"),
+            "category": m.get("category"),
+        }
+        for m in active[:limit]
+    ]
 
 
 # ── Models ──

@@ -1,0 +1,109 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(167, 139, 250, 0.15);
+  padding: 8px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+.badgeText {
+  color: #A78BFA;
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.title {
+  color: #FFFFFF;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0;
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modelRow {
+  display: flex;
+  align-items: center;
+  background: #0B1120;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.modelRow:hover {
+  border-color: #334155;
+}
+.modelRowActive {
+  border-color: #6366F1;
+}
+.modelInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.modelName {
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 600;
+}
+.modelDesc {
+  color: #94A3B8;
+  font-size: 12px;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+.errorBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0;
+  gap: 8px;
+}
+.errorText {
+  color: #94A3B8;
+  font-size: 15px;
+  font-weight: 600;
+}
+.errorDetail {
+  color: #475569;
+  font-size: 12px;
+  text-align: center;
+  padding: 0 20px;
+}
+.retryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #6366F1;
+  color: #FFFFFF;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 8px;
+  cursor: pointer;
+}

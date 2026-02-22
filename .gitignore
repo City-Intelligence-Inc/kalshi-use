@@ -2,6 +2,7 @@
 infra/.terraform/
 infra/*.tfstate*
 infra/.terraform.lock.hcl
+infra/*.tfvars
 
 # Python
 __pycache__/

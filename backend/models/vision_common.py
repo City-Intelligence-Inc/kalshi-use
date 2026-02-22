@@ -7,6 +7,34 @@ import re
 logger = logging.getLogger(__name__)
 
 
+def _compute_ev_scenarios(
+    confidence: float, market_price_cents: float, side: str
+) -> list[dict]:
+    """Generate 3 EV scenarios at conf-10%, conf, conf+10%.
+
+    Uses the same formulas from the system prompt so frontend always has data.
+    """
+    scenarios = []
+    for offset in (-0.10, 0.0, 0.10):
+        p = max(0.01, min(0.99, confidence + offset))
+        if side == "yes":
+            c = market_price_cents
+            ev = (p * 100 - c) / 100
+            denom = 1 - c / 100
+            kelly = (p - c / 100) / denom if denom > 0 else 0
+        else:
+            c = 100 - market_price_cents
+            ev = (p * 100 - c) / 100
+            denom = 1 - c / 100
+            kelly = (p - c / 100) / denom if denom > 0 else 0
+        scenarios.append({
+            "probability": round(p, 2),
+            "ev_per_contract": round(ev, 4),
+            "kelly_fraction": round(max(0, kelly), 4),
+        })
+    return scenarios
+
+
 def _repair_truncated_json(text: str) -> dict | None:
     """Attempt to parse truncated JSON by closing open structures.
 
@@ -101,6 +129,33 @@ Key analysis principles:
 - Always include a bear case
 - Set no_bet=true if the market appears fairly priced (edge < 3%)
 
+CRITICAL — You MUST populate ALL fields. NEVER return null or empty arrays for these:
+- "reasoning" — 1-3 sentences, NEVER "No reasoning provided"
+- "factors" — at least 3 entries, ALWAYS
+- "confidence" — your real estimate, NEVER default to 0.5
+- "ev_analysis" — ALWAYS exactly 3 scenarios. If no prices are visible, estimate them.
+  Example: if you estimate 65% true probability and market price is 50c:
+    [{"probability": 0.55, "ev_per_contract": 0.05, "kelly_fraction": 0.02},
+     {"probability": 0.65, "ev_per_contract": 0.15, "kelly_fraction": 0.06},
+     {"probability": 0.75, "ev_per_contract": 0.25, "kelly_fraction": 0.10}]
+- "bear_case" — ALWAYS a string, never null. What could go wrong?
+- "recommended_position" — ALWAYS a number 0.01-0.15, never null
+
+EV CALCULATION (you must do this every time):
+  If you recommend YES at confidence P, and the market/estimated price is C cents:
+    ev_per_contract = (P × 100 - C) / 100     (in dollars)
+    kelly_fraction  = (P - C/100) / (1 - C/100)
+  If you recommend NO at confidence P (NO wins with probability P):
+    ev_per_contract = (P × 100 - (100 - C)) / 100
+    kelly_fraction  = (P - (100-C)/100) / (1 - (100-C)/100)
+  If no price is visible, estimate a market price based on the event.
+
+If the screenshot is NOT a Kalshi market page (e.g. news, social media, live sports):
+- Still provide FULL analysis — every field populated
+- Set ticker to "UNKNOWN" but fill search_keywords aggressively
+- Estimate what a fair market price would be, then compute EV from there
+- Use your knowledge to give substantive factors, bear case, and sizing
+
 If you cannot read the screenshot clearly, still return your best effort with lower confidence.
 
 Return ONLY the JSON object, no other text.
@@ -179,5 +234,55 @@ def parse_llm_response(raw_text: str) -> dict:
     if side not in ("yes", "no"):
         side = "yes"
     result["side"] = side
+
+    # --- Fallback computations for missing fields ---
+
+    # Determine market price for EV computation
+    market_price = None
+    vp = result.get("visible_prices")
+    if isinstance(vp, dict):
+        yes_p = vp.get("yes_price")
+        no_p = vp.get("no_price")
+        if yes_p is not None:
+            try:
+                market_price = float(yes_p)
+            except (TypeError, ValueError):
+                pass
+        elif no_p is not None:
+            try:
+                market_price = 100 - float(no_p)
+            except (TypeError, ValueError):
+                pass
+
+    # If no visible price, estimate from confidence (assume market is ~fair)
+    if market_price is None:
+        market_price = result["confidence"] * 100
+
+    # Fallback EV analysis — compute if missing or empty
+    if not result.get("ev_analysis"):
+        result["ev_analysis"] = _compute_ev_scenarios(
+            result["confidence"], market_price, result["side"]
+        )
+        logger.info("Computed fallback EV scenarios (conf=%.2f, price=%.0f, side=%s)",
+                     result["confidence"], market_price, result["side"])
+
+    # Fallback recommended_position — half-Kelly from best scenario
+    if result.get("recommended_position") is None:
+        ev_list = result.get("ev_analysis", [])
+        if ev_list:
+            best_kelly = max(s.get("kelly_fraction", 0) for s in ev_list)
+            result["recommended_position"] = round(
+                max(0.01, min(0.15, best_kelly * 0.5)), 4
+            )
+        else:
+            result["recommended_position"] = 0.01
+
+    # Fallback bear_case
+    if not result.get("bear_case"):
+        result["bear_case"] = "No counter-argument identified"
+
+    # Fallback reasoning
+    if result.get("reasoning") == "No reasoning provided":
+        result["reasoning"] = "Analysis unavailable — model returned insufficient data"
 
     return result

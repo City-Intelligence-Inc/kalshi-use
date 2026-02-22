@@ -1,0 +1,738 @@
+/* ── Container ── */
+.container {
+  min-height: 100vh;
+  background-color: #0B1120;
+}
+.content {
+  padding: 20px;
+  padding-bottom: 100px;
+  max-width: 700px;
+}
+
+/* ── Beginner Toggle ── */
+.beginnerToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #111827;
+  padding: 8px 12px;
+  border-radius: 20px;
+  margin-bottom: 12px;
+  border: 1px solid #1F2937;
+  cursor: pointer;
+}
+.beginnerToggleText {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+}
+.beginnerToggleTextActive {
+  color: #818CF8;
+}
+.beginnerDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #334155;
+}
+.beginnerDotOn {
+  background-color: #818CF8;
+}
+
+/* ── Beginner Tip ── */
+.tipContainer {
+  border-left: 2px solid #6366F1;
+  background: rgba(99,102,241,0.06);
+  padding: 6px 10px;
+  margin-top: 8px;
+  border-radius: 4px;
+}
+.tipText {
+  color: #818CF8;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 18px;
+}
+
+/* ── Trade Card ── */
+.tradeCard {
+  background: #111827;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 16px;
+  border: 1px solid #1F2937;
+}
+.orderHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.tradeLabel {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+.liveDot {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.liveDotText {
+  color: #22C55E;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.tradeActionRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.tradeAction {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+.atPrice {
+  color: #CBD5E1;
+  font-size: 22px;
+  font-weight: 700;
+}
+.tradeTicker {
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Menlo', monospace;
+  margin-bottom: 2px;
+}
+.tradeTitle {
+  color: #64748B;
+  font-size: 13px;
+  line-height: 18px;
+  margin-bottom: 16px;
+}
+
+/* ── Order Grid ── */
+.orderGrid {
+  background: rgba(255,255,255,0.02);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.orderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.orderLabel {
+  color: #64748B;
+  font-size: 13px;
+}
+.orderValue {
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Menlo', monospace;
+}
+.orderDivider {
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+}
+
+/* ── Numbers Strip ── */
+.numbersStrip {
+  display: flex;
+  background: rgba(255,255,255,0.03);
+  border-radius: 12px;
+  padding: 16px 0;
+}
+.numberBox {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.numberLabel {
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.numberValue {
+  color: #FFFFFF;
+  font-size: 20px;
+  font-weight: 800;
+}
+.numberSub {
+  color: #475569;
+  font-size: 9px;
+  margin-top: 2px;
+}
+.numberDivider {
+  width: 1px;
+  background: rgba(255,255,255,0.06);
+}
+
+.noMarketNote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.noMarketNoteText {
+  color: #64748B;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ── Pass Card ── */
+.passCard {
+  background: rgba(234,179,8,0.06);
+  border-radius: 16px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 16px;
+  border: 1px solid rgba(234,179,8,0.15);
+}
+.passIconCircle {
+  width: 52px;
+  height: 52px;
+  border-radius: 26px;
+  background: rgba(234,179,8,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.passTitle {
+  color: #EAB308;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 2px;
+}
+.passSubtitle {
+  color: #CA8A04;
+  font-size: 14px;
+  margin-top: 4px;
+}
+.passDivider {
+  height: 1px;
+  background: rgba(234,179,8,0.12);
+  width: 100%;
+  margin: 16px 0;
+}
+.passReason {
+  color: #FDE68A;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+}
+.passTicker {
+  color: #92400E;
+  font-size: 12px;
+  font-family: 'Menlo', monospace;
+  margin-top: 12px;
+}
+
+/* ── Accept / Reject ── */
+.acceptRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.acceptedBanner {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(34,197,94,0.08);
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(34,197,94,0.2);
+}
+.acceptedText {
+  color: #22C55E;
+  font-size: 14px;
+  font-weight: 600;
+}
+.acceptButton {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #22C55E;
+  padding: 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 700;
+}
+.rejectButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(239,68,68,0.08);
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(239,68,68,0.2);
+  cursor: pointer;
+  color: #EF4444;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ── Toggle Sections ── */
+.toggleSection {
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: #111827;
+  overflow: hidden;
+  border: 1px solid #1F2937;
+}
+.toggleHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+.toggleLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.toggleTitle {
+  color: #CBD5E1;
+  font-size: 14px;
+  font-weight: 600;
+}
+.toggleBadge {
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-left: 8px;
+}
+.toggleBadgeText {
+  font-size: 10px;
+  font-weight: 700;
+}
+.toggleBody {
+  padding: 0 16px 16px;
+}
+
+/* ── Body Text ── */
+.bodyText {
+  color: #94A3B8;
+  font-size: 14px;
+  line-height: 22px;
+}
+.mutedMessage {
+  color: #475569;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* ── Factors ── */
+.factorRow {
+  display: flex;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.factorIconCol {
+  width: 28px;
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+.factorContent {
+  flex: 1;
+}
+.factorStat {
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.factorDetail {
+  color: #94A3B8;
+  font-size: 13px;
+  line-height: 19px;
+  margin-bottom: 6px;
+}
+.factorMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.factorSource {
+  color: #475569;
+  font-size: 11px;
+}
+.magDots {
+  display: flex;
+  gap: 3px;
+}
+.magDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+}
+
+/* ── EV Table ── */
+.evExplainer {
+  color: #475569;
+  font-size: 12px;
+  line-height: 18px;
+  margin-bottom: 12px;
+}
+.evTable {
+  border-radius: 8px;
+  overflow: hidden;
+}
+.evHeaderRow {
+  display: flex;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.03);
+}
+.evHeaderCell {
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.evDataRow {
+  display: flex;
+  padding: 10px 12px;
+}
+.evDataRowAlt {
+  background: rgba(255,255,255,0.02);
+}
+.evBestRow {
+  background: rgba(34,197,94,0.06);
+}
+.evCell {
+  color: #CBD5E1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ── Bear Case ── */
+.bearCard {
+  border-left: 3px solid #DC2626;
+  padding-left: 12px;
+}
+
+/* ── Screenshot ── */
+.screenshotImage {
+  width: 100%;
+  height: 200px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* ── Idea Label ── */
+.ideaLabel {
+  color: #A78BFA;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+/* ── Meta ── */
+.metaRow {
+  text-align: center;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+.metaText {
+  color: #334155;
+  font-size: 11px;
+}
+
+/* ── Actions ── */
+.actionRow {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+.resetButton {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #6366F1;
+  padding: 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 700;
+}
+.editButton {
+  background: rgba(167,139,250,0.12);
+  padding: 0 18px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* ── Edit Modal ── */
+.editTitle {
+  color: #FFFFFF;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+.editLabel {
+  color: #94A3B8;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  margin-top: 12px;
+}
+.editInput {
+  width: 100%;
+  background: #0B1120;
+  color: #FFFFFF;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 14px;
+  min-height: 60px;
+  border: 1px solid #334155;
+  outline: none;
+  resize: vertical;
+}
+.editInput:focus {
+  border-color: #6366F1;
+}
+.editInput::placeholder {
+  color: #475569;
+}
+.saveButton {
+  width: 100%;
+  background: #6366F1;
+  padding: 16px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20px;
+  cursor: pointer;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ── Error ── */
+.errorContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  min-height: 60vh;
+}
+.errorText {
+  color: #94A3B8;
+  font-size: 16px;
+  text-align: center;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+.errorDetail {
+  color: #475569;
+  font-size: 12px;
+  text-align: center;
+  margin-bottom: 24px;
+  padding: 0 20px;
+}
+
+/* ── Live Market Data ── */
+.warningRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(234,179,8,0.06);
+  padding: 12px;
+  border-radius: 8px;
+}
+.warningText {
+  color: #EAB308;
+  font-size: 13px;
+  flex: 1;
+}
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+}
+.statusText {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.deltaPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.priceGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.priceRow {
+  display: flex;
+  gap: 6px;
+}
+.priceCell {
+  flex: 1;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.priceCellLabel {
+  color: #475569;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.priceCellValue {
+  color: #CBD5E1;
+  font-size: 16px;
+  font-weight: 800;
+}
+.volumeRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.volumeItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  padding: 8px 0;
+}
+.volumeLabel {
+  color: #475569;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.volumeValue {
+  color: #94A3B8;
+  font-size: 14px;
+  font-weight: 700;
+}
+.depthContainer {
+  margin-bottom: 14px;
+}
+.depthLabel {
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.depthBarTrack {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.depthBarYes {
+  background-color: #22C55E;
+}
+.depthBarNo {
+  background-color: #EF4444;
+}
+.depthLegend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.depthLegendYes {
+  color: #22C55E;
+  font-size: 10px;
+  font-weight: 700;
+}
+.depthLegendNo {
+  color: #EF4444;
+  font-size: 10px;
+  font-weight: 700;
+}
+.eventContext {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 12px;
+}
+.eventLabel {
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.eventTitle {
+  color: #94A3B8;
+  font-size: 13px;
+  line-height: 18px;
+}
+.eventSub {
+  color: #475569;
+  font-size: 11px;
+  margin-top: 4px;
+}

@@ -4,47 +4,199 @@
   margin-bottom: 24px;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
+.card {
+  background-color: #1E293B;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 12px;
 }
 
 .cardLabel {
-  color: var(--text-secondary);
+  color: #94A3B8;
   font-size: 14px;
   margin-bottom: 8px;
 }
 
-.cardValue {
-  font-size: 28px;
+.cardValueLarge {
+  color: #FFFFFF;
+  font-size: 36px;
   font-weight: 700;
 }
 
-.green {
-  color: var(--green);
+.cardValue {
+  color: #FFFFFF;
+  font-size: 24px;
+  font-weight: 700;
 }
 
-.yellow {
-  color: var(--yellow);
+.greenText {
+  color: #4ADE80;
 }
 
-.statusRow {
+.blueText {
+  color: #60A5FA;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+}
+
+.halfCard {
+  flex: 1;
+}
+
+.platformHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.platformLeft {
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+
+.statusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+}
+
+.statusActive {
+  background-color: #22C55E;
+}
+
+.statusError {
+  background-color: #EF4444;
+}
+
+.platformName {
+  color: #E2E8F0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.connectedText {
+  color: #22C55E;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.depositButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #6366F1;
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 4px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.emptyCard {
+  background-color: #1E293B;
+  border-radius: 16px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.emptyTitle {
+  color: #CBD5E1;
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 12px;
+}
+
+.emptySubtitle {
+  color: #64748B;
+  font-size: 14px;
+  text-align: center;
+  margin-top: 6px;
+  margin-bottom: 20px;
+}
+
+.connectButton {
+  background-color: #6366F1;
+  border-radius: 10px;
+  padding: 12px 24px;
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Live Markets ── */
+
+.marketsSection {
+  margin-top: 8px;
+}
+
+.marketHeader {
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  color: #FFFFFF;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.sortRow {
+  display: flex;
   gap: 8px;
 }
 
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--text-muted);
+.sortPill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  background-color: #1E293B;
+  border: 1px solid #1F2937;
+  color: #64748B;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
-.statusText {
-  color: var(--text-secondary);
-  font-size: 18px;
-  font-weight: 600;
+.sortPillActive {
+  background-color: rgba(99,102,241,0.15);
+  border-color: #6366F1;
+  color: #818CF8;
+}
+
+.loadingRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 0;
+}
+
+.loadingText {
+  color: #64748B;
+  font-size: 14px;
+}
+
+.emptyMarkets {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 0;
+  gap: 8px;
+}
+
+.emptyMarketsText {
+  color: #64748B;
+  font-size: 14px;
 }

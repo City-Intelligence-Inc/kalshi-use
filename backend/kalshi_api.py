@@ -1,13 +1,18 @@
 """Kalshi public API client for live market data enrichment."""
 
 import logging
+import time
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
-TIMEOUT = 10.0
+TIMEOUT = 30.0
+
+# In-memory cache for open markets list
+_markets_cache: dict[str, tuple[float, list[dict]]] = {}
+_MARKETS_CACHE_TTL = 60.0  # seconds
 
 
 def _client() -> httpx.Client:
@@ -80,10 +85,61 @@ def fetch_events(status: str = "open", limit: int = 200) -> list[dict]:
         return []
 
 
-def _score_title(event_title: str, keywords: list[str]) -> int:
-    """Score how well an event title matches a set of keywords."""
-    title_lower = event_title.lower()
+def fetch_markets(status: str = "open", limit: int = 1000) -> list[dict]:
+    """GET /markets → list of markets with title, ticker, pricing.
+
+    Results are cached in-memory for 60s to avoid hammering the API.
+    """
+    cache_key = f"{status}:{limit}"
+    cached = _markets_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < _MARKETS_CACHE_TTL:
+        return cached[1]
+
+    all_markets: list[dict] = []
+    cursor: str | None = None
+    try:
+        with _client() as c:
+            while True:
+                params: dict = {"status": status, "limit": min(limit, 1000)}
+                if cursor:
+                    params["cursor"] = cursor
+                r = c.get("/markets", params=params)
+                r.raise_for_status()
+                data = r.json()
+                batch = data.get("markets", [])
+                all_markets.extend(batch)
+                cursor = data.get("cursor")
+                if not cursor or len(all_markets) >= limit:
+                    break
+    except httpx.HTTPError:
+        logger.exception("Kalshi markets fetch failed")
+
+    _markets_cache[cache_key] = (time.time(), all_markets)
+    logger.info("Fetched %d open markets from Kalshi", len(all_markets))
+    return all_markets
+
+
+def _score_title(title: str, keywords: list[str]) -> int:
+    """Score how well a title matches a set of keywords."""
+    title_lower = title.lower()
     return sum(1 for kw in keywords if kw in title_lower)
+
+
+def _build_keywords(
+    extracted_title: str | None,
+    search_keywords: list[str] | None,
+) -> list[str]:
+    """Build a keyword list from title + explicit keywords."""
+    stop_words = {"the", "will", "and", "for", "who", "what", "how", "does", "have", "has", "been", "this", "that", "with"}
+    keywords: list[str] = []
+    if search_keywords:
+        keywords.extend(kw.lower() for kw in search_keywords if len(kw) > 2)
+    if extracted_title:
+        keywords.extend(
+            w.lower() for w in extracted_title.split()
+            if len(w) > 2 and w.lower() not in stop_words
+        )
+    return keywords
 
 
 def match_market(
@@ -95,7 +151,8 @@ def match_market(
 
     Strategy:
       1. Direct ticker lookup (fast path)
-      2. Keyword search through active events (fallback)
+      2. Search all open market titles (new — much better matching)
+      3. Fall back to event title search (original approach)
 
     Returns the matched market dict or None.
     """
@@ -105,49 +162,69 @@ def match_market(
         if market:
             return market
 
-    # 2. Build keyword list from title + explicit keywords
-    keywords: list[str] = []
-    if search_keywords:
-        keywords.extend(kw.lower() for kw in search_keywords if len(kw) > 2)
-    if extracted_title:
-        keywords.extend(
-            w.lower() for w in extracted_title.split()
-            if len(w) > 2 and w.lower() not in ("the", "will", "and", "for", "who", "what")
-        )
-
+    # Build keyword list
+    keywords = _build_keywords(extracted_title, search_keywords)
     if not keywords:
         return None
 
-    # Fetch active events and score by keyword overlap
+    # 2. Search open market titles directly (new)
+    markets = fetch_markets(status="open")
+    best_market = None
+    best_score = 0
+
+    for m in markets:
+        market_title = m.get("title", "")
+        score = _score_title(market_title, keywords)
+        # Also check event_ticker as keyword (e.g. "KXBTC" in keywords)
+        event_ticker = m.get("event_ticker", "")
+        if event_ticker:
+            score += _score_title(event_ticker.lower(), keywords)
+        if score > best_score:
+            best_score = score
+            best_market = m
+
+    # Market title matches are specific — threshold of 1 is OK
+    if best_market and best_score >= 1:
+        logger.info("Matched market %s (score=%d) via market title search", best_market.get("ticker"), best_score)
+        return best_market
+
+    # 3. Fall back to event title search
     events = fetch_events(status="open", limit=200)
     best_event = None
-    best_score = 0
+    best_event_score = 0
 
     for event in events:
         event_title = event.get("title", "")
         score = _score_title(event_title, keywords)
-        if score > best_score:
-            best_score = score
+        if score > best_event_score:
+            best_event_score = score
             best_event = event
 
-    if not best_event or best_score < 2:
+    if not best_event or best_event_score < 2:
         return None
 
-    # Return the first active market from the best-matching event
-    markets = best_event.get("markets", [])
-    if not markets:
-        # Event found but no nested markets — fetch via event_ticker
+    # Pick best market within event by scoring market titles
+    event_markets = best_event.get("markets", [])
+    if not event_markets:
         event_ticker = best_event.get("event_ticker")
         if event_ticker:
             event_detail = fetch_event(event_ticker)
             if event_detail:
-                markets = event_detail.get("markets", [])
+                event_markets = event_detail.get("markets", [])
 
-    for m in markets:
-        if m.get("status") in ("active", "open", "live"):
-            return m
+    best_in_event = None
+    best_in_event_score = -1
+    for m in event_markets:
+        if m.get("status") not in ("active", "open", "live"):
+            continue
+        m_score = _score_title(m.get("title", ""), keywords)
+        if m_score > best_in_event_score:
+            best_in_event_score = m_score
+            best_in_event = m
 
-    return markets[0] if markets else None
+    if best_in_event:
+        return best_in_event
+    return event_markets[0] if event_markets else None
 
 
 def enrich_prediction(ticker: str) -> dict:

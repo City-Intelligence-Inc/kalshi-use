@@ -1,0 +1,57 @@
+.card {
+  background-color: #1E293B;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 10px;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.ticker {
+  color: #6366F1;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-family: 'Menlo', monospace;
+}
+.date {
+  color: #64748B;
+  font-size: 12px;
+}
+.badges {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.badge {
+  background-color: #334155;
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: #CBD5E1;
+  font-size: 12px;
+  font-weight: 600;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.statLabel {
+  color: #64748B;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.statValue {
+  color: #CBD5E1;
+  font-size: 15px;
+  font-weight: 600;
+}

@@ -94,6 +94,26 @@ export interface ModelInfo {
   custom?: boolean;
 }
 
+// ── Public Markets ──
+
+export interface KalshiMarket {
+  ticker: string;
+  title: string;
+  event_ticker?: string;
+  status?: string;
+  yes_bid?: number;
+  yes_ask?: number;
+  no_bid?: number;
+  no_ask?: number;
+  last_price?: number;
+  previous_price?: number;
+  volume?: number;
+  volume_24h?: number;
+  open_interest?: number;
+  close_time?: string;
+  category?: string;
+}
+
 // ── Integrations & Portfolio ──
 
 export interface Integration {

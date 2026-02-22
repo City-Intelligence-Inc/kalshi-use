@@ -3,6 +3,7 @@ import {
   AggregatedPortfolio,
   Integration,
   KalshiFill,
+  KalshiMarket,
   KalshiPosition,
   ModelInfo,
   Prediction,
@@ -78,6 +79,12 @@ export async function healthCheck(): Promise<{ status: string }> {
 
 export async function getModels(): Promise<ModelInfo[]> {
   return request<ModelInfo[]>("/models");
+}
+
+// ── Public Markets ──
+
+export async function getMarkets(limit: number = 200): Promise<KalshiMarket[]> {
+  return request<KalshiMarket[]>(`/markets?status=open&limit=${limit}`);
 }
 
 // ── Predictions ──

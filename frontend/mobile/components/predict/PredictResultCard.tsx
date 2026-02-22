@@ -461,64 +461,151 @@ export default function PredictResultCard({
           </Text>
           <Text style={styles.passTicker}>{rec.ticker}</Text>
         </View>
-      ) : (
-        <View style={styles.tradeCard}>
-          {/* Action line */}
-          <Text style={styles.tradeLabel}>TRADE</Text>
-          <View style={styles.tradeActionRow}>
-            <Text style={[styles.tradeAction, { color: sideColor }]}>
-              BUY {rec.side.toUpperCase()}
-            </Text>
-            <View style={[styles.edgePill, { backgroundColor: sideColor + "18" }]}>
-              <Text style={[styles.edgePillText, { color: sideColor }]}>
-                +{bestEv.toFixed(2)}c EV
-              </Text>
-            </View>
-          </View>
-          <BeginnerTip
-            show={beginnerMode}
-            text={`The model thinks you should bet ${rec.side.toUpperCase()} on this question. The EV pill shows expected profit per contract if the model is right.`}
-          />
+      ) : (() => {
+        const md = prediction.market_data;
+        const hasMarket = md?.status === "found";
 
-          {/* Ticker + title */}
-          <Text style={styles.tradeTicker}>{rec.ticker}</Text>
-          {rec.title && <Text style={styles.tradeTitle}>{rec.title}</Text>}
-          <BeginnerTip
-            show={beginnerMode}
-            text="The ticker is this market's ID on Kalshi, like a stock ticker symbol."
-          />
+        // Entry price = the ask price you'd pay to buy
+        const entryPrice = hasMarket
+          ? rec.side === "yes"
+            ? (md!.yes_ask ?? md!.last_price ?? null)
+            : (md!.no_ask ?? (md!.yes_bid != null ? 100 - md!.yes_bid : md!.last_price != null ? 100 - md!.last_price : null))
+          : null;
 
-          {/* Key numbers strip */}
-          <View style={styles.numbersStrip}>
-            <View style={styles.numberBox}>
-              <Text style={styles.numberLabel}>Confidence</Text>
-              <Text style={[styles.numberValue, { color: sideColor }]}>
-                {confidencePct}%
-              </Text>
+        const targetPrice = Math.round(rec.confidence * 100);
+        const edge = entryPrice != null ? targetPrice - entryPrice : null;
+        const maxProfitPer = entryPrice != null ? 100 - entryPrice : null;
+        const returnPct = entryPrice != null && entryPrice > 0 ? ((100 - entryPrice) / entryPrice * 100) : null;
+
+        // Contracts: ~$10 worth as example sizing
+        const exampleBankroll = 100;
+        const suggestedSpend = Math.round(exampleBankroll * (rec.recommended_position ?? 0.05));
+        const contracts = entryPrice != null && entryPrice > 0 ? Math.max(1, Math.floor(suggestedSpend / (entryPrice / 100))) : null;
+        const totalCost = contracts != null && entryPrice != null ? (contracts * entryPrice / 100) : null;
+        const maxProfit = contracts != null && maxProfitPer != null ? (contracts * maxProfitPer / 100) : null;
+
+        return (
+          <View style={styles.tradeCard}>
+            {/* Order header */}
+            <View style={styles.orderHeader}>
+              <Text style={styles.tradeLabel}>SUGGESTED ORDER</Text>
+              {hasMarket && (
+                <View style={[styles.liveDot, { backgroundColor: "#22C55E" }]}>
+                  <Text style={styles.liveDotText}>LIVE</Text>
+                </View>
+              )}
             </View>
-            <View style={styles.numberDivider} />
-            <View style={styles.numberBox}>
-              <Text style={styles.numberLabel}>Size</Text>
-              <Text style={styles.numberValue}>{positionPct}%</Text>
-              <Text style={styles.numberSub}>of bankroll</Text>
-            </View>
-            <View style={styles.numberDivider} />
-            <View style={styles.numberBox}>
-              <Text style={styles.numberLabel}>Full Kelly</Text>
-              <Text style={styles.numberValue}>
-                {(maxKelly * 100).toFixed(0)}%
+
+            {/* Main action */}
+            <View style={styles.tradeActionRow}>
+              <Text style={[styles.tradeAction, { color: sideColor }]}>
+                BUY {rec.side.toUpperCase()}
               </Text>
-              <Text style={styles.numberSub}>
-                {positionPct}% = {(((rec.recommended_position ?? 0) / (maxKelly || 1)) * 100).toFixed(0)}% Kelly
-              </Text>
+              {entryPrice != null && (
+                <Text style={styles.atPrice}>@ {entryPrice}¢</Text>
+              )}
             </View>
+
+            {/* Ticker + title */}
+            <Text style={styles.tradeTicker}>{rec.ticker}</Text>
+            {rec.title && <Text style={styles.tradeTitle}>{rec.title}</Text>}
+
+            {/* Order details grid */}
+            {entryPrice != null && (
+              <View style={styles.orderGrid}>
+                <View style={styles.orderRow}>
+                  <Text style={styles.orderLabel}>Limit Price</Text>
+                  <Text style={styles.orderValue}>{entryPrice}¢</Text>
+                </View>
+                <View style={styles.orderRow}>
+                  <Text style={styles.orderLabel}>Side</Text>
+                  <Text style={[styles.orderValue, { color: sideColor }]}>
+                    {rec.side.toUpperCase()}
+                  </Text>
+                </View>
+                {contracts != null && (
+                  <View style={styles.orderRow}>
+                    <Text style={styles.orderLabel}>Contracts</Text>
+                    <Text style={styles.orderValue}>{contracts}</Text>
+                  </View>
+                )}
+                {totalCost != null && (
+                  <View style={styles.orderRow}>
+                    <Text style={styles.orderLabel}>Total Cost</Text>
+                    <Text style={styles.orderValue}>${totalCost.toFixed(2)}</Text>
+                  </View>
+                )}
+                <View style={styles.orderDivider} />
+                {maxProfit != null && (
+                  <View style={styles.orderRow}>
+                    <Text style={styles.orderLabel}>Max Profit</Text>
+                    <Text style={[styles.orderValue, { color: "#22C55E" }]}>
+                      +${maxProfit.toFixed(2)}{returnPct != null ? ` (${returnPct.toFixed(0)}%)` : ""}
+                    </Text>
+                  </View>
+                )}
+                {totalCost != null && (
+                  <View style={styles.orderRow}>
+                    <Text style={styles.orderLabel}>Max Loss</Text>
+                    <Text style={[styles.orderValue, { color: "#EF4444" }]}>
+                      -${totalCost.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+                {edge != null && (
+                  <View style={styles.orderRow}>
+                    <Text style={styles.orderLabel}>Edge</Text>
+                    <Text style={[styles.orderValue, { color: edge > 0 ? "#22C55E" : "#EF4444" }]}>
+                      {edge > 0 ? "+" : ""}{edge}¢
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Confidence + sizing strip */}
+            <View style={styles.numbersStrip}>
+              <View style={styles.numberBox}>
+                <Text style={styles.numberLabel}>Model says</Text>
+                <Text style={[styles.numberValue, { color: sideColor }]}>
+                  {confidencePct}%
+                </Text>
+                <Text style={styles.numberSub}>true prob</Text>
+              </View>
+              <View style={styles.numberDivider} />
+              <View style={styles.numberBox}>
+                <Text style={styles.numberLabel}>Market says</Text>
+                <Text style={styles.numberValue}>
+                  {entryPrice != null ? `${entryPrice}%` : "—"}
+                </Text>
+                <Text style={styles.numberSub}>implied prob</Text>
+              </View>
+              <View style={styles.numberDivider} />
+              <View style={styles.numberBox}>
+                <Text style={styles.numberLabel}>Position</Text>
+                <Text style={styles.numberValue}>
+                  {(rec.recommended_position ?? 0) > 0 ? `${positionPct}%` : "—"}
+                </Text>
+                <Text style={styles.numberSub}>of bankroll</Text>
+              </View>
+            </View>
+
+            {!hasMarket && (
+              <View style={styles.noMarketNote}>
+                <Ionicons name="information-circle-outline" size={14} color="#64748B" />
+                <Text style={styles.noMarketNoteText}>
+                  Prices estimated — market not matched on Kalshi
+                </Text>
+              </View>
+            )}
+
+            <BeginnerTip
+              show={beginnerMode}
+              text={`This is the order you'd place on Kalshi. BUY ${rec.side.toUpperCase()} means you're betting ${rec.side === "yes" ? "the event happens" : "the event doesn't happen"}. You pay the limit price per contract and get $1 back if you're right.`}
+            />
           </View>
-          <BeginnerTip
-            show={beginnerMode}
-            text={`Confidence = how sure the model is (${confidencePct}% means it thinks there's a ${confidencePct}-in-100 chance it's correct). Size = how much of your money to risk. Full Kelly = the mathematically optimal bet size — the recommended size is usually smaller to reduce risk.`}
-          />
-        </View>
-      )}
+        );
+      })()}
 
       {/* ═══ Accept / Reject ═══ */}
       {!rec.no_bet && (
@@ -618,49 +705,53 @@ export default function PredictResultCard({
       )}
 
       {/* ═══ SIZING — EV at different probs ═══ */}
-      {evScenarios.length > 0 && (
-        <ToggleSection
-          title="Sizing scenarios"
-          icon="resize-outline"
-          badge={{
-            text: `best +${bestEv.toFixed(2)}c`,
-            color: "#22C55E",
-          }}
-          beginnerTip={
-            <BeginnerTip
-              show={beginnerMode}
-              text="What happens if the model's probability estimate is off. Green EV = still profitable. Kelly = suggested bet size at that probability."
-            />
-          }
-        >
-          <Text style={styles.evExplainer}>
-            If your true probability estimate is wrong, here's how the trade looks at different levels.
-            Positive EV = mispricing in your favor.
-          </Text>
-          <EvTable scenarios={evScenarios} side={rec.side} />
-        </ToggleSection>
-      )}
+      <ToggleSection
+        title="Sizing scenarios"
+        icon="resize-outline"
+        badge={evScenarios.length > 0 ? {
+          text: `best +${bestEv.toFixed(2)}c`,
+          color: "#22C55E",
+        } : undefined}
+        beginnerTip={
+          <BeginnerTip
+            show={beginnerMode}
+            text="What happens if the model's probability estimate is off. Green EV = still profitable. Kelly = suggested bet size at that probability."
+          />
+        }
+      >
+        {evScenarios.length > 0 ? (
+          <>
+            <Text style={styles.evExplainer}>
+              If your true probability estimate is wrong, here's how the trade looks at different levels.
+              Positive EV = mispricing in your favor.
+            </Text>
+            <EvTable scenarios={evScenarios} side={rec.side} />
+          </>
+        ) : (
+          <Text style={styles.mutedMessage}>EV analysis unavailable for this prediction</Text>
+        )}
+      </ToggleSection>
 
       {/* ═══ WHAT KILLS YOU — Bear case ═══ */}
-      {rec.bear_case && (
-        <ToggleSection
-          title="What kills this trade"
-          icon="skull-outline"
-          beginnerTip={
-            <BeginnerTip
-              show={beginnerMode}
-              text="The strongest argument AGAINST this bet. Read this before putting money down."
-            />
-          }
-        >
-          <View style={styles.bearCard}>
-            <Text style={styles.bodyText}>{rec.bear_case}</Text>
-          </View>
-        </ToggleSection>
-      )}
+      <ToggleSection
+        title="What kills this trade"
+        icon="skull-outline"
+        beginnerTip={
+          <BeginnerTip
+            show={beginnerMode}
+            text="The strongest argument AGAINST this bet. Read this before putting money down."
+          />
+        }
+      >
+        <View style={styles.bearCard}>
+          <Text style={rec.bear_case ? styles.bodyText : styles.mutedMessage}>
+            {rec.bear_case || "No counter-argument identified"}
+          </Text>
+        </View>
+      </ToggleSection>
 
       {/* ═══ Live Market Data ═══ */}
-      {prediction.market_data && (
+      {prediction.market_data ? (
         <ToggleSection
           title="Live market data"
           icon="pulse-outline"
@@ -673,6 +764,21 @@ export default function PredictResultCard({
           }
         >
           <LiveMarketSection data={prediction.market_data} beginnerMode={beginnerMode} />
+        </ToggleSection>
+      ) : (
+        <ToggleSection
+          title="Live market data"
+          icon="pulse-outline"
+          badge={{ text: "NO MATCH", color: "#64748B" }}
+        >
+          <View style={liveStyles.warningRow}>
+            <Ionicons name="search-outline" size={16} color="#64748B" />
+            <Text style={[liveStyles.warningText, { color: "#94A3B8" }]}>
+              {rec.ticker && rec.ticker !== "UNKNOWN"
+                ? `Could not find "${rec.ticker}" on Kalshi`
+                : "Could not identify a Kalshi market from this screenshot"}
+            </Text>
+          </View>
         </ToggleSection>
       )}
 
@@ -874,7 +980,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#818CF8",
   },
 
-  // ── Trade Card (the decision) ──
+  // ── Trade Card (order ticket) ──
   tradeCard: {
     backgroundColor: "#111827",
     borderRadius: 16,
@@ -883,31 +989,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1F2937",
   },
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
   tradeLabel: {
     color: "#475569",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 2,
-    marginBottom: 6,
+  },
+  liveDot: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  liveDotText: {
+    color: "#22C55E",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1,
   },
   tradeActionRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
+    alignItems: "baseline",
+    gap: 10,
+    marginBottom: 10,
   },
   tradeAction: {
     fontSize: 32,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
-  edgePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  edgePillText: {
-    fontSize: 13,
+  atPrice: {
+    color: "#CBD5E1",
+    fontSize: 22,
     fontWeight: "700",
   },
   tradeTicker: {
@@ -922,6 +1042,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 16,
+  },
+  orderGrid: {
+    backgroundColor: "rgba(255,255,255,0.02)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    gap: 10,
+  },
+  orderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  orderLabel: {
+    color: "#64748B",
+    fontSize: 13,
+  },
+  orderValue: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  orderDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  noMarketNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+  },
+  noMarketNoteText: {
+    color: "#64748B",
+    fontSize: 12,
+    fontStyle: "italic",
   },
   numbersStrip: {
     flexDirection: "row",
@@ -954,6 +1111,13 @@ const styles = StyleSheet.create({
   numberDivider: {
     width: 1,
     backgroundColor: "rgba(255,255,255,0.06)",
+  },
+
+  // ── Muted Message ──
+  mutedMessage: {
+    color: "#475569",
+    fontSize: 13,
+    fontStyle: "italic",
   },
 
   // ── Pass Card ──

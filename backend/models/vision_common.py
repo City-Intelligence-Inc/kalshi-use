@@ -122,11 +122,17 @@ def parse_llm_response(raw_text: str) -> dict:
     result.setdefault("no_bet_reason", None)
 
     # Clamp confidence to [0, 1]
-    result["confidence"] = max(0.0, min(1.0, float(result["confidence"])))
+    try:
+        result["confidence"] = max(0.0, min(1.0, float(result["confidence"])))
+    except (TypeError, ValueError):
+        result["confidence"] = 0.5
 
     # Normalize side
-    result["side"] = result["side"].lower().strip()
-    if result["side"] not in ("yes", "no"):
-        result["side"] = "yes"
+    side = result.get("side")
+    if side is not None:
+        side = str(side).lower().strip()
+    if side not in ("yes", "no"):
+        side = "yes"
+    result["side"] = side
 
     return result

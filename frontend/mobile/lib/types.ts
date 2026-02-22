@@ -121,6 +121,7 @@ export interface Prediction {
   status: string;
   recommendation?: PredictionRecommendation;
   market_data?: MarketData;
+  error_message?: string;
   user_notes?: string;
   model_idea?: string;
   created_at: string;

@@ -126,9 +126,10 @@ class Prediction(BaseModel):
     image_url: Optional[str] = None
     context: Optional[str] = None
     model: str
-    status: str  # "processing", "completed"
+    status: str  # "processing", "completed", "failed"
     recommendation: Optional[PredictionRecommendation] = None
     market_data: Optional[MarketData] = None
+    error_message: Optional[str] = None
     user_notes: Optional[str] = None    # user-editable notes after analysis
     model_idea: Optional[str] = None    # user-submitted model/analysis idea
     created_at: str

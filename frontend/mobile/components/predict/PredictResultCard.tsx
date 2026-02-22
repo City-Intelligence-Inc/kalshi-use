@@ -328,6 +328,9 @@ export default function PredictResultCard({
               ? "Analysis failed. Try again."
               : "No recommendation available."}
           </Text>
+          {prediction.error_message && (
+            <Text style={styles.errorDetail}>{prediction.error_message}</Text>
+          )}
           <Pressable style={styles.resetButton} onPress={onReset}>
             <Text style={styles.resetButtonText}>Try Again</Text>
           </Pressable>
@@ -1168,7 +1171,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
     marginTop: 12,
+    marginBottom: 12,
+  },
+  errorDetail: {
+    color: "#475569",
+    fontSize: 12,
+    textAlign: "center",
     marginBottom: 24,
+    paddingHorizontal: 20,
   },
 });
 

@@ -19,7 +19,7 @@ export async function getEndpoint(): Promise<EndpointKey> {
     _cachedEndpoint = stored;
     return stored;
   }
-  const defaultEndpoint: EndpointKey = __DEV__ ? "local" : "production";
+  const defaultEndpoint: EndpointKey = "production";
   _cachedEndpoint = defaultEndpoint;
   return defaultEndpoint;
 }
@@ -111,7 +111,7 @@ export async function submitPrediction(
   imageUri: string,
   userId: string,
   context?: string,
-  model: string = "taruns_model",
+  model: string = "gemini",
   expoPushToken?: string
 ): Promise<Prediction> {
   const token = await AsyncStorage.getItem("auth_token");

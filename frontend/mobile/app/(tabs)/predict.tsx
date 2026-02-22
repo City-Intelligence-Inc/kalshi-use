@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,8 +12,8 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { submitPrediction } from "../../lib/api";
-import { Prediction } from "../../lib/types";
+import { submitPrediction, pollPrediction } from "../../lib/api";
+import { Prediction, Factor, EvScenario } from "../../lib/types";
 
 type ScreenState = "idle" | "submitting" | "result";
 
@@ -22,6 +22,8 @@ export default function PredictScreen() {
   const [context, setContext] = useState("");
   const [state, setState] = useState<ScreenState>("idle");
   const [prediction, setPrediction] = useState<Prediction | null>(null);
+
+  const pollAbort = useRef(false);
 
   async function pickImage(source: "camera" | "library") {
     const opts: ImagePicker.ImagePickerOptions = {
@@ -66,27 +68,42 @@ export default function PredictScreen() {
   async function handleSubmit() {
     if (!imageUri) return;
     setState("submitting");
+    pollAbort.current = false;
     try {
-      const result = await submitPrediction(
+      // Submit — returns immediately with status: "processing"
+      const initial = await submitPrediction(
         imageUri,
         "demo-user",
-        context || undefined
+        context || undefined,
+        "taruns_model"
       );
-      setPrediction(result);
+      setPrediction(initial);
+
+      // Poll until completed
+      if (initial.status !== "completed" && initial.status !== "failed") {
+        const completed = await pollPrediction(initial.prediction_id);
+        if (pollAbort.current) return;
+        setPrediction(completed);
+      }
+
       setState("result");
     } catch (e: any) {
-      Alert.alert("Error", e.message ?? "Something went wrong");
-      setState("idle");
+      if (!pollAbort.current) {
+        Alert.alert("Error", e.message ?? "Something went wrong");
+        setState("idle");
+      }
     }
   }
 
   function handleReset() {
+    pollAbort.current = true;
     setImageUri(null);
     setContext("");
     setPrediction(null);
     setState("idle");
   }
 
+  // ── Result screen ──
   if (state === "result" && prediction) {
     const rec = prediction.recommendation;
     return (
@@ -111,28 +128,142 @@ export default function PredictScreen() {
 
         {/* Recommendation card */}
         {rec && (
-          <View style={styles.recCard}>
-            <Text style={styles.recTicker}>{rec.ticker}</Text>
+          <>
+            {/* No-bet warning */}
+            {rec.no_bet && (
+              <View style={styles.noBetCard}>
+                <Text style={styles.noBetTitle}>No Bet Recommended</Text>
+                {rec.no_bet_reason && (
+                  <Text style={styles.noBetReason}>{rec.no_bet_reason}</Text>
+                )}
+              </View>
+            )}
 
-            <View style={styles.recRow}>
-              <View
-                style={[
-                  styles.sideBadge,
-                  rec.side === "yes" ? styles.sideYes : styles.sideNo,
-                ]}
-              >
-                <Text style={styles.sideText}>
-                  {rec.side.toUpperCase()}
+            <View style={styles.recCard}>
+              <Text style={styles.recTicker}>{rec.ticker}</Text>
+              {rec.title ? (
+                <Text style={styles.recTitle}>{rec.title}</Text>
+              ) : null}
+
+              <View style={styles.recRow}>
+                <View
+                  style={[
+                    styles.sideBadge,
+                    rec.side === "yes" ? styles.sideYes : styles.sideNo,
+                  ]}
+                >
+                  <Text style={styles.sideText}>
+                    {rec.side.toUpperCase()}
+                  </Text>
+                </View>
+
+                <Text style={styles.confidence}>
+                  {Math.round(rec.confidence * 100)}% confidence
                 </Text>
               </View>
 
-              <Text style={styles.confidence}>
-                {Math.round(rec.confidence * 100)}% confidence
-              </Text>
+              <Text style={styles.reasoning}>{rec.reasoning}</Text>
+
+              {/* Kelly sizing */}
+              {rec.recommended_position > 0 && !rec.no_bet && (
+                <View style={styles.kellyBadge}>
+                  <Text style={styles.kellyText}>
+                    Kelly: {(rec.recommended_position * 100).toFixed(1)}% of
+                    bankroll
+                  </Text>
+                </View>
+              )}
             </View>
 
-            <Text style={styles.reasoning}>{rec.reasoning}</Text>
-          </View>
+            {/* Factors */}
+            {rec.factors && rec.factors.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Key Factors</Text>
+                {rec.factors.map((f: Factor, i: number) => (
+                  <View key={i} style={styles.factorCard}>
+                    <View style={styles.factorHeader}>
+                      <Text style={styles.factorStat}>{f.stat}</Text>
+                      <View
+                        style={[
+                          styles.magnitudeBadge,
+                          f.magnitude === "high"
+                            ? styles.magnitudeHigh
+                            : f.magnitude === "medium"
+                            ? styles.magnitudeMedium
+                            : styles.magnitudeLow,
+                        ]}
+                      >
+                        <Text style={styles.magnitudeText}>
+                          {f.magnitude.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.factorDetail}>{f.detail}</Text>
+                    <View style={styles.factorMeta}>
+                      <Text style={styles.factorSource}>{f.source}</Text>
+                      <Text
+                        style={[
+                          styles.factorDirection,
+                          f.direction === "favors_yes"
+                            ? styles.dirYes
+                            : styles.dirNo,
+                        ]}
+                      >
+                        {f.direction === "favors_yes"
+                          ? "Favors YES"
+                          : "Favors NO"}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* EV Analysis */}
+            {rec.ev_analysis && rec.ev_analysis.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>EV Analysis</Text>
+                <View style={styles.evTable}>
+                  <View style={styles.evHeaderRow}>
+                    <Text style={styles.evHeaderCell}>Prob</Text>
+                    <Text style={styles.evHeaderCell}>EV/Contract</Text>
+                    <Text style={styles.evHeaderCell}>Kelly</Text>
+                  </View>
+                  {rec.ev_analysis.map((ev: EvScenario, i: number) => (
+                    <View key={i} style={styles.evRow}>
+                      <Text style={styles.evCell}>
+                        {Math.round(ev.probability * 100)}%
+                      </Text>
+                      <Text
+                        style={[
+                          styles.evCell,
+                          ev.ev_per_contract >= 0
+                            ? styles.evPositive
+                            : styles.evNegative,
+                        ]}
+                      >
+                        {ev.ev_per_contract >= 0 ? "+" : ""}
+                        {ev.ev_per_contract.toFixed(4)}
+                      </Text>
+                      <Text style={styles.evCell}>
+                        {(ev.kelly_fraction * 100).toFixed(1)}%
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Bear case */}
+            {rec.bear_case && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Bear Case</Text>
+                <View style={styles.bearCard}>
+                  <Text style={styles.bearText}>{rec.bear_case}</Text>
+                </View>
+              </View>
+            )}
+          </>
         )}
 
         {/* Actions */}
@@ -143,6 +274,7 @@ export default function PredictScreen() {
     );
   }
 
+  // ── Idle / submitting screen ──
   return (
     <View style={styles.container}>
       {/* Upload area */}
@@ -182,7 +314,10 @@ export default function PredictScreen() {
         disabled={!imageUri || state === "submitting"}
       >
         {state === "submitting" ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <View style={styles.submittingRow}>
+            <ActivityIndicator color="#FFFFFF" />
+            <Text style={styles.submittingText}>Analyzing...</Text>
+          </View>
         ) : (
           <Text style={styles.buttonText}>Analyze</Text>
         )}
@@ -273,6 +408,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
+  submittingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  submittingText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   // Result screen styles
   resultImage: {
     width: "100%",
@@ -303,6 +448,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "700",
+    marginBottom: 4,
+  },
+  recTitle: {
+    color: "#94A3B8",
+    fontSize: 14,
     marginBottom: 12,
   },
   recRow: {
@@ -332,6 +482,163 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   reasoning: {
+    color: "#CBD5E1",
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  kellyBadge: {
+    marginTop: 12,
+    backgroundColor: "rgba(99, 102, 241, 0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  kellyText: {
+    color: "#818CF8",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  // No-bet card
+  noBetCard: {
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+  },
+  noBetTitle: {
+    color: "#EAB308",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  noBetReason: {
+    color: "#FDE68A",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  // Sections
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  // Factor cards
+  factorCard: {
+    backgroundColor: "#1E293B",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+  },
+  factorHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  factorStat: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
+  },
+  magnitudeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  magnitudeHigh: {
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+  },
+  magnitudeMedium: {
+    backgroundColor: "rgba(234, 179, 8, 0.2)",
+  },
+  magnitudeLow: {
+    backgroundColor: "rgba(148, 163, 184, 0.2)",
+  },
+  magnitudeText: {
+    color: "#CBD5E1",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  factorDetail: {
+    color: "#94A3B8",
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 8,
+  },
+  factorMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  factorSource: {
+    color: "#64748B",
+    fontSize: 12,
+  },
+  factorDirection: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  dirYes: {
+    color: "#22C55E",
+  },
+  dirNo: {
+    color: "#EF4444",
+  },
+  // EV table
+  evTable: {
+    backgroundColor: "#1E293B",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  evHeaderRow: {
+    flexDirection: "row",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#162033",
+  },
+  evHeaderCell: {
+    flex: 1,
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  evRow: {
+    flexDirection: "row",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#1E293B",
+  },
+  evCell: {
+    flex: 1,
+    color: "#CBD5E1",
+    fontSize: 14,
+  },
+  evPositive: {
+    color: "#22C55E",
+  },
+  evNegative: {
+    color: "#EF4444",
+  },
+  // Bear case
+  bearCard: {
+    backgroundColor: "#1E293B",
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: "#EF4444",
+  },
+  bearText: {
     color: "#CBD5E1",
     fontSize: 14,
     lineHeight: 22,

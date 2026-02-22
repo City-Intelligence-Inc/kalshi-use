@@ -46,11 +46,34 @@ export interface AuthState {
   isLoading: boolean;
 }
 
+// Prediction models
+
+export interface EvScenario {
+  probability: number;
+  ev_per_contract: number;
+  kelly_fraction: number;
+}
+
+export interface Factor {
+  stat: string;
+  source: string;
+  direction: "favors_yes" | "favors_no";
+  magnitude: "low" | "medium" | "high";
+  detail: string;
+}
+
 export interface PredictionRecommendation {
   ticker: string;
+  title: string;
   side: "yes" | "no";
   confidence: number;
   reasoning: string;
+  factors: Factor[];
+  ev_analysis: EvScenario[];
+  bear_case: string;
+  recommended_position: number;
+  no_bet: boolean;
+  no_bet_reason?: string;
 }
 
 export interface Prediction {
@@ -64,6 +87,13 @@ export interface Prediction {
   recommendation?: PredictionRecommendation;
   created_at: string;
   completed_at?: string;
+}
+
+export interface ModelInfo {
+  name: string;
+  display_name: string;
+  description: string;
+  status: string;
 }
 
 export interface AgentConfig {

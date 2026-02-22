@@ -1,8 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Prediction, TradeLog, TradeLogCreate } from "./types";
+import { ModelInfo, Prediction, TradeLog, TradeLogCreate } from "./types";
 
 const API_BASE_URL = __DEV__
-  ? "http://localhost:8000"
+  ? "http://192.168.7.179:8000"
   : "https://cuxaxyzbcm.us-east-1.awsapprunner.com";
 
 async function request<T>(
@@ -54,13 +54,24 @@ export async function healthCheck(): Promise<{ status: string }> {
   return request<{ status: string }>("/health");
 }
 
+// Model endpoints
+
+export async function getModels(): Promise<ModelInfo[]> {
+  return request<ModelInfo[]>("/models");
+}
+
+export async function getModelInfo(name: string): Promise<ModelInfo> {
+  return request<ModelInfo>(`/models/${encodeURIComponent(name)}`);
+}
+
 // Prediction endpoints
 
 export async function submitPrediction(
   imageUri: string,
   userId: string,
   context?: string,
-  model: string = "taruns_model"
+  model: string = "taruns_model",
+  expoPushToken?: string
 ): Promise<Prediction> {
   const token = await AsyncStorage.getItem("auth_token");
 
@@ -78,6 +89,9 @@ export async function submitPrediction(
   formData.append("model", model);
   if (context) {
     formData.append("context", context);
+  }
+  if (expoPushToken) {
+    formData.append("expo_push_token", expoPushToken);
   }
 
   const res = await fetch(`${API_BASE_URL}/predict`, {
@@ -104,4 +118,23 @@ export async function getPredictions(userId: string): Promise<Prediction[]> {
   return request<Prediction[]>(
     `/predictions?user_id=${encodeURIComponent(userId)}`
   );
+}
+
+/**
+ * Poll for a prediction until it reaches a terminal status.
+ * Returns the completed prediction.
+ */
+export async function pollPrediction(
+  predictionId: string,
+  intervalMs: number = 2000,
+  maxAttempts: number = 60
+): Promise<Prediction> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const prediction = await getPrediction(predictionId);
+    if (prediction.status === "completed" || prediction.status === "failed") {
+      return prediction;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error("Prediction timed out");
 }

@@ -1,11 +1,14 @@
-import random
+import asyncio
+import logging
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 from backend.db import (
+    append_analysis_log,
     delete_trade,
+    get_analysis_log,
     get_prediction,
     get_predictions_by_user,
     get_presigned_url,
@@ -17,17 +20,26 @@ from backend.db import (
     put_prediction,
     put_snapshot,
     put_trade,
+    update_prediction,
     update_trade,
     upload_image,
 )
-from backend.models import (
+from backend.models import get_model, list_models
+from backend.notifications import send_push
+from backend.prediction_log import log_prediction
+from backend.pydantic_models import (
+    InputResponse,
     MarketSnapshot,
     MarketSnapshotCreate,
+    ModelInfo,
+    OutputRequest,
     Prediction,
     TradeLog,
     TradeLogCreate,
     TradeLogUpdate,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -35,6 +47,9 @@ router = APIRouter()
 @router.get("/")
 def root():
     return {"message": "hello"}
+
+
+# ── Trades ──
 
 
 @router.post("/trades", response_model=TradeLog)
@@ -97,45 +112,210 @@ def read_snapshots(event_ticker: str, limit: int = Query(50, ge=1, le=500)):
 
 
 @router.get("/snapshots", response_model=list[MarketSnapshot])
-def list_snapshots(category: str = Query(...), limit: int = Query(50, ge=1, le=500)):
+def list_snapshots_endpoint(category: str = Query(...), limit: int = Query(50, ge=1, le=500)):
     return get_snapshots_by_category(category, limit=limit)
 
 
-# ── Predictions ──
-
-AVAILABLE_MODELS = ["taruns_model"]
-
-STUB_TICKERS = [
-    "kxnbagame-26feb21hounyknicks",
-    "kxpolitics-trumpapproval50",
-    "kxfed-ratecut-mar26",
-    "kxcrypto-btc100k-apr26",
-    "kxufc312-mainevent",
-]
-
-STUB_REASONINGS = [
-    "Strong momentum detected in recent price action. Historical patterns suggest a favorable entry point.",
-    "Market sentiment appears mispriced based on current polling data and news flow.",
-    "Volume spike indicates informed trading. The odds haven't caught up to the fundamentals yet.",
-    "Chart pattern shows a clear breakout forming. Risk/reward is asymmetric here.",
-    "Recent news catalyst hasn't been fully priced in. Early movers have an edge.",
-]
+# ── Models ──
 
 
-def _run_taruns_model(image_key: str, context: str | None) -> dict:
-    """Stub for Tarun's Model — returns random recommendation.
-    Will be replaced with real LLM vision analysis later."""
+@router.get("/models", response_model=list[ModelInfo])
+def list_models_endpoint():
+    return list_models()
+
+
+@router.get("/models/{name}", response_model=ModelInfo)
+def get_model_endpoint(name: str):
+    runner = get_model(name)
+    if not runner:
+        raise HTTPException(status_code=404, detail=f"Model '{name}' not found")
     return {
-        "ticker": random.choice(STUB_TICKERS),
-        "side": random.choice(["yes", "no"]),
-        "confidence": round(random.uniform(0.55, 0.95), 2),
-        "reasoning": random.choice(STUB_REASONINGS),
+        "name": runner.name,
+        "display_name": runner.display_name,
+        "description": runner.description,
+        "status": runner.status,
     }
 
 
-MODEL_RUNNERS = {
-    "taruns_model": _run_taruns_model,
-}
+# ── Predictions: Pipeline ──
+
+
+async def _run_model_background(
+    prediction_id: str,
+    model_name: str,
+    image_key: str,
+    context: str | None,
+    expo_push_token: str | None,
+):
+    """Run model in background, update DB, and optionally send push notification."""
+    try:
+        runner = get_model(model_name)
+        if not runner:
+            update_prediction(prediction_id, {
+                "status": "failed",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+            return
+
+        # Run model (blocking call in thread pool to not block event loop)
+        loop = asyncio.get_event_loop()
+        recommendation = await loop.run_in_executor(None, runner.run, image_key, context)
+
+        completed_at = datetime.now(timezone.utc).isoformat()
+        update_prediction(prediction_id, {
+            "recommendation": recommendation,
+            "status": "completed",
+            "completed_at": completed_at,
+        })
+
+        # Log the analysis (S3)
+        try:
+            append_analysis_log({
+                "prediction_id": prediction_id,
+                "model": model_name,
+                "image_key": image_key,
+                "context": context,
+                "recommendation": recommendation,
+                "completed_at": completed_at,
+            })
+        except Exception:
+            logger.exception("Failed to append analysis log for %s", prediction_id)
+
+        # Log to local JSONL file
+        try:
+            log_prediction({
+                "prediction_id": prediction_id,
+                "model": model_name,
+                "image_key": image_key,
+                "context": context,
+                "status": "completed",
+                "ticker": recommendation.get("ticker"),
+                "side": recommendation.get("side"),
+                "confidence": recommendation.get("confidence"),
+                "completed_at": completed_at,
+            })
+        except Exception:
+            logger.exception("Failed to write prediction log for %s", prediction_id)
+
+        # Send push notification if token provided
+        if expo_push_token:
+            ticker = recommendation.get("ticker", "Unknown")
+            side = recommendation.get("side", "?").upper()
+            confidence = round(recommendation.get("confidence", 0) * 100)
+            await send_push(
+                expo_push_token,
+                "Analysis Ready",
+                f"{ticker} — {side} ({confidence}%)",
+                data={"prediction_id": prediction_id},
+            )
+    except Exception:
+        logger.exception("Background model run failed for prediction %s", prediction_id)
+        failed_at = datetime.now(timezone.utc).isoformat()
+        update_prediction(prediction_id, {
+            "status": "failed",
+            "completed_at": failed_at,
+        })
+        try:
+            log_prediction({
+                "prediction_id": prediction_id,
+                "model": model_name,
+                "image_key": image_key,
+                "status": "failed",
+                "completed_at": failed_at,
+            })
+        except Exception:
+            logger.exception("Failed to write prediction log for %s", prediction_id)
+
+
+@router.post("/predict/input", response_model=InputResponse)
+async def predict_input(
+    image: UploadFile = File(...),
+    user_id: str = Form(...),
+    context: str = Form(None),
+):
+    """Step 1: Upload image to S3, create prediction record."""
+    prediction_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    contents = await image.read()
+    ext = image.filename.rsplit(".", 1)[-1] if image.filename else "jpg"
+    content_type = "image/png" if ext == "png" else "image/jpeg"
+    image_key = f"predictions/{prediction_id}/{image.filename or 'photo.jpg'}"
+    upload_image(contents, image_key, content_type)
+    image_url = get_presigned_url(image_key)
+
+    prediction = {
+        "prediction_id": prediction_id,
+        "user_id": user_id,
+        "image_key": image_key,
+        "image_url": image_url,
+        "context": context,
+        "model": "",
+        "status": "uploaded",
+        "created_at": now,
+    }
+    put_prediction(prediction)
+
+    return {"prediction_id": prediction_id, "image_key": image_key, "image_url": image_url}
+
+
+@router.post("/predict/output", response_model=Prediction)
+async def predict_output(req: OutputRequest):
+    """Step 2: Run model on an existing prediction, return result."""
+    prediction = get_prediction(req.prediction_id)
+    if not prediction:
+        raise HTTPException(status_code=404, detail="Prediction not found")
+
+    runner = get_model(req.model)
+    if not runner:
+        available = [m["name"] for m in list_models()]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown model '{req.model}'. Available: {available}",
+        )
+
+    # Update model name
+    update_prediction(req.prediction_id, {"model": req.model, "status": "processing"})
+
+    # Run model
+    recommendation = runner.run(prediction["image_key"], prediction.get("context"))
+    completed_at = datetime.now(timezone.utc).isoformat()
+    result = update_prediction(req.prediction_id, {
+        "recommendation": recommendation,
+        "status": "completed",
+        "completed_at": completed_at,
+    })
+
+    # Log the analysis (S3)
+    try:
+        append_analysis_log({
+            "prediction_id": req.prediction_id,
+            "model": req.model,
+            "image_key": prediction["image_key"],
+            "context": prediction.get("context"),
+            "recommendation": recommendation,
+            "completed_at": completed_at,
+        })
+    except Exception:
+        logger.exception("Failed to append analysis log for %s", req.prediction_id)
+
+    # Log to local JSONL file
+    try:
+        log_prediction({
+            "prediction_id": req.prediction_id,
+            "model": req.model,
+            "image_key": prediction["image_key"],
+            "context": prediction.get("context"),
+            "status": "completed",
+            "ticker": recommendation.get("ticker"),
+            "side": recommendation.get("side"),
+            "confidence": recommendation.get("confidence"),
+            "completed_at": completed_at,
+        })
+    except Exception:
+        logger.exception("Failed to write prediction log for %s", req.prediction_id)
+
+    return result
 
 
 @router.post("/predict", response_model=Prediction)
@@ -144,17 +324,22 @@ async def create_prediction(
     user_id: str = Form(...),
     context: str = Form(None),
     model: str = Form("taruns_model"),
+    expo_push_token: str = Form(None),
 ):
-    if model not in MODEL_RUNNERS:
+    """Orchestrator: upload image + kick off model in background.
+    Returns immediately with status='processing'. Poll GET /predictions/{id} for result."""
+    runner = get_model(model)
+    if not runner:
+        available = [m["name"] for m in list_models()]
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown model '{model}'. Available: {AVAILABLE_MODELS}",
+            detail=f"Unknown model '{model}'. Available: {available}",
         )
 
     prediction_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
-    # 1. Upload image to S3
+    # Upload image to S3
     contents = await image.read()
     ext = image.filename.rsplit(".", 1)[-1] if image.filename else "jpg"
     content_type = "image/png" if ext == "png" else "image/jpeg"
@@ -162,7 +347,7 @@ async def create_prediction(
     upload_image(contents, image_key, content_type)
     image_url = get_presigned_url(image_key)
 
-    # 2. Create prediction record
+    # Create prediction record
     prediction = {
         "prediction_id": prediction_id,
         "user_id": user_id,
@@ -175,14 +360,33 @@ async def create_prediction(
     }
     put_prediction(prediction)
 
-    # 3. Run model (stub for now — will be async later)
-    recommendation = MODEL_RUNNERS[model](image_key, context)
-    prediction["recommendation"] = recommendation
-    prediction["status"] = "completed"
-    prediction["completed_at"] = datetime.now(timezone.utc).isoformat()
-    put_prediction(prediction)
+    # Log submission to local JSONL
+    try:
+        log_prediction({
+            "prediction_id": prediction_id,
+            "user_id": user_id,
+            "image_key": image_key,
+            "context": context,
+            "model": model,
+            "status": "processing",
+            "image_filename": image.filename,
+            "created_at": now,
+        })
+    except Exception:
+        logger.exception("Failed to write prediction log for %s", prediction_id)
+
+    # Run model in background
+    asyncio.create_task(
+        _run_model_background(prediction_id, model, image_key, context, expo_push_token)
+    )
 
     return prediction
+
+
+@router.get("/predictions/log")
+def read_analysis_log():
+    """Return the full analysis log (all predictions ever run)."""
+    return get_analysis_log()
 
 
 @router.get("/predictions/{prediction_id}", response_model=Prediction)

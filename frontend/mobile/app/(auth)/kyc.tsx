@@ -7,8 +7,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  ScrollView,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useRouter } from "expo-router";
 import { submitKyc } from "@/lib/auth";
 
@@ -44,7 +44,13 @@ export default function KycScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      enableOnAndroid
+      extraScrollHeight={20}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.heading}>Identity verification</Text>
       <Text style={styles.description}>
         As a CFTC-regulated exchange, Kalshi requires identity verification
@@ -103,7 +109,7 @@ export default function KycScreen() {
           <Text style={styles.buttonText}>Submit</Text>
         )}
       </Pressable>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

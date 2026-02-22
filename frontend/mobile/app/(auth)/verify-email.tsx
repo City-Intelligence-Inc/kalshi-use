@@ -7,6 +7,10 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { verifyEmail } from "@/lib/auth";
@@ -37,8 +41,13 @@ export default function VerifyEmailScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.heading}>Verify your email</Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+      >
+        <Text style={styles.heading}>Verify your email</Text>
       <Text style={styles.description}>
         We sent a 6-digit code to your email. Enter it below to continue.
       </Text>
@@ -66,10 +75,11 @@ export default function VerifyEmailScreen() {
         )}
       </Pressable>
 
-      <Pressable onPress={() => Alert.alert("TODO", "Resend code")}>
-        <Text style={styles.resendText}>Resend code</Text>
-      </Pressable>
-    </View>
+        <Pressable onPress={() => Alert.alert("TODO", "Resend code")}>
+          <Text style={styles.resendText}>Resend code</Text>
+        </Pressable>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 

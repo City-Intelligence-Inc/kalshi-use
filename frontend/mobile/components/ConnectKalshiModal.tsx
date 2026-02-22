@@ -8,10 +8,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { connectPlatform } from "../lib/api";
 
 interface Props {
@@ -60,7 +60,11 @@ export default function ConnectKalshiModal({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.sheet}>
-          <ScrollView keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView
+            enableOnAndroid
+            extraScrollHeight={20}
+            keyboardShouldPersistTaps="handled"
+          >
             <Text style={styles.title}>
               Connect Kalshi ({accountType === "agent" ? "AI Agent" : "Personal"})
             </Text>
@@ -107,7 +111,7 @@ export default function ConnectKalshiModal({
             <Pressable style={styles.cancelButton} onPress={onClose}>
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>

@@ -7,8 +7,10 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useRouter } from "expo-router";
 import { signup, validatePassword, validateEmail } from "@/lib/auth";
 import PasswordInput from "@/components/PasswordInput";
@@ -53,7 +55,13 @@ export default function SignupScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      enableOnAndroid
+      extraScrollHeight={20}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.heading}>Create account</Text>
 
       <TextInput
@@ -112,7 +120,7 @@ export default function SignupScreen() {
           <Text style={styles.buttonText}>Sign Up</Text>
         )}
       </Pressable>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 

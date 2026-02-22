@@ -13,7 +13,9 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Prediction, Factor, EvScenario, MarketData } from "../../lib/types";
@@ -714,88 +716,96 @@ export default function PredictResultCard({
         animationType="slide"
         onRequestClose={() => setEditVisible(false)}
       >
-        <Pressable
+        <KeyboardAvoidingView
           style={styles.editBackdrop}
-          onPress={() => setEditVisible(false)}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <Pressable
-            style={styles.editSheet}
-            onPress={(e) => e.stopPropagation()}
-          >
+            style={{ flex: 1 }}
+            onPress={() => setEditVisible(false)}
+          />
+          <View style={styles.editSheet}>
             <View style={styles.editHandle} />
-            <Text style={styles.editTitle}>Edit Prediction</Text>
-
-            <Text style={styles.editLabel}>Your Notes</Text>
-            <TextInput
-              style={styles.editInput}
-              placeholder="Add your thoughts on this prediction..."
-              placeholderTextColor="#475569"
-              value={editNotes}
-              onChangeText={setEditNotes}
-              multiline
-            />
-
-            <Text style={styles.editLabel}>Model Idea</Text>
-            <TextInput
-              style={styles.editInput}
-              placeholder="Suggest an analysis approach or model idea..."
-              placeholderTextColor="#475569"
-              value={editIdea}
-              onChangeText={setEditIdea}
-              multiline
-            />
-
-            <Text style={styles.editLabel}>Context</Text>
-            <TextInput
-              style={styles.editInput}
-              placeholder="What should the model look for?"
-              placeholderTextColor="#475569"
-              value={editContext}
-              onChangeText={setEditContext}
-              multiline
-            />
-
-            <Pressable
-              style={styles.saveButton}
-              disabled={saving}
-              onPress={async () => {
-                setSaving(true);
-                try {
-                  const updates: Record<string, string> = {};
-                  if (editNotes !== (prediction.user_notes ?? ""))
-                    updates.user_notes = editNotes;
-                  if (editIdea !== (prediction.model_idea ?? ""))
-                    updates.model_idea = editIdea;
-                  if (editContext !== (prediction.context ?? ""))
-                    updates.context = editContext;
-
-                  if (Object.keys(updates).length === 0) {
-                    setEditVisible(false);
-                    setSaving(false);
-                    return;
-                  }
-
-                  const updated = await updatePrediction(
-                    prediction.prediction_id,
-                    updates
-                  );
-                  onPredictionUpdate?.(updated);
-                  setEditVisible(false);
-                } catch (e: any) {
-                  Alert.alert("Error", e.message ?? "Failed to save");
-                } finally {
-                  setSaving(false);
-                }
-              }}
+            <KeyboardAwareScrollView
+              enableOnAndroid
+              extraScrollHeight={20}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              {saving ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
-              )}
-            </Pressable>
-          </Pressable>
-        </Pressable>
+              <Text style={styles.editTitle}>Edit Prediction</Text>
+
+              <Text style={styles.editLabel}>Your Notes</Text>
+              <TextInput
+                style={styles.editInput}
+                placeholder="Add your thoughts on this prediction..."
+                placeholderTextColor="#475569"
+                value={editNotes}
+                onChangeText={setEditNotes}
+                multiline
+              />
+
+              <Text style={styles.editLabel}>Model Idea</Text>
+              <TextInput
+                style={styles.editInput}
+                placeholder="Suggest an analysis approach or model idea..."
+                placeholderTextColor="#475569"
+                value={editIdea}
+                onChangeText={setEditIdea}
+                multiline
+              />
+
+              <Text style={styles.editLabel}>Context</Text>
+              <TextInput
+                style={styles.editInput}
+                placeholder="What should the model look for?"
+                placeholderTextColor="#475569"
+                value={editContext}
+                onChangeText={setEditContext}
+                multiline
+              />
+
+              <Pressable
+                style={styles.saveButton}
+                disabled={saving}
+                onPress={async () => {
+                  setSaving(true);
+                  try {
+                    const updates: Record<string, string> = {};
+                    if (editNotes !== (prediction.user_notes ?? ""))
+                      updates.user_notes = editNotes;
+                    if (editIdea !== (prediction.model_idea ?? ""))
+                      updates.model_idea = editIdea;
+                    if (editContext !== (prediction.context ?? ""))
+                      updates.context = editContext;
+
+                    if (Object.keys(updates).length === 0) {
+                      setEditVisible(false);
+                      setSaving(false);
+                      return;
+                    }
+
+                    const updated = await updatePrediction(
+                      prediction.prediction_id,
+                      updates
+                    );
+                    onPredictionUpdate?.(updated);
+                    setEditVisible(false);
+                  } catch (e: any) {
+                    Alert.alert("Error", e.message ?? "Failed to save");
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save</Text>
+                )}
+              </Pressable>
+            </KeyboardAwareScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScrollView>
   );

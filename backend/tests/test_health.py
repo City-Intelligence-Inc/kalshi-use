@@ -12,7 +12,7 @@ with (
     mock_resource.return_value.Table.return_value = mock_table
     from backend.main import app
 
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402
 
 client = TestClient(app)
 

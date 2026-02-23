@@ -326,13 +326,232 @@ function SnapshotCard({ item }: { item: Record<string, any> }) {
   );
 }
 
+// ── Tracked Position Card ──
+
+function TrackedPositionCard({ item }: { item: Record<string, any> }) {
+  const ticker = item.ticker ?? item.market_ticker ?? "—";
+  const title = item.title ?? item.market_title ?? ticker;
+  const side = item.side?.toUpperCase() ?? "?";
+  const entryPrice = item.entry_price;
+  const currentPrice = item.current_price ?? item.last_price;
+  const status = item.status ?? "active";
+  const createdAt = item.created_at;
+  const paperPnl = item.paper_pnl;
+
+  const sideColor = side === "YES" ? "#22C55E" : side === "NO" ? "#EF4444" : "#64748B";
+  const statusColor =
+    status === "active" ? "#3B82F6" :
+    status === "settled_win" ? "#22C55E" :
+    status === "settled_loss" ? "#EF4444" : "#64748B";
+  const statusLabel =
+    status === "settled_win" ? "WON" :
+    status === "settled_loss" ? "LOST" :
+    status.toUpperCase();
+
+  return (
+    <View style={d.card}>
+      <View style={d.tradeRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={d.cardTitle} numberOfLines={1}>{title}</Text>
+          <View style={d.cardMeta}>
+            <Text style={[d.tradeAction, { color: sideColor }]}>{side}</Text>
+            {entryPrice != null && (
+              <>
+                <Text style={d.cardDot}> · </Text>
+                <Text style={d.cardModel}>entry {entryPrice}¢</Text>
+              </>
+            )}
+            {currentPrice != null && (
+              <>
+                <Text style={d.cardDot}> · </Text>
+                <Text style={d.cardModel}>now {currentPrice}¢</Text>
+              </>
+            )}
+            {paperPnl != null && (
+              <>
+                <Text style={d.cardDot}> · </Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: paperPnl >= 0 ? "#22C55E" : "#EF4444" }}>
+                  {paperPnl >= 0 ? "+" : ""}{(paperPnl / 100).toFixed(2)}
+                </Text>
+              </>
+            )}
+          </View>
+        </View>
+        <View style={{ alignItems: "flex-end", gap: 4 }}>
+          <View style={[d.actionBadge, { backgroundColor: statusColor + "20" }]}>
+            <Text style={[d.actionBadgeText, { color: statusColor }]}>{statusLabel}</Text>
+          </View>
+          {createdAt && <Text style={d.cardTime}>{timeAgo(createdAt)}</Text>}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── Integration Card ──
+
+function IntegrationCard({ item }: { item: Record<string, any> }) {
+  const platform = item.platform ?? "unknown";
+  const accountType = item.account_type ?? "?";
+  const userId = item.user_id ?? "?";
+  const hasKey = item.api_key_id && item.api_key_id !== "***REDACTED***";
+  const hasPush = !!item.expo_push_token;
+  const email = item.email;
+
+  return (
+    <View style={d.card}>
+      <View style={d.tradeRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={d.cardTitle} numberOfLines={1}>
+            {platform.charAt(0).toUpperCase() + platform.slice(1)} ({accountType})
+          </Text>
+          <View style={d.cardMeta}>
+            <Text style={d.cardModel}>user: {userId}</Text>
+            {email && (
+              <>
+                <Text style={d.cardDot}> · </Text>
+                <Text style={d.cardModel}>{email}</Text>
+              </>
+            )}
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          <View style={[d.actionBadge, { backgroundColor: "#22C55E20" }]}>
+            <Text style={[d.actionBadgeText, { color: "#22C55E" }]}>CONNECTED</Text>
+          </View>
+          {hasPush && (
+            <View style={[d.actionBadge, { backgroundColor: "#3B82F620" }]}>
+              <Text style={[d.actionBadgeText, { color: "#3B82F6" }]}>PUSH</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── Bot Progress Card ──
+
+function BotProgressCard({ item }: { item: Record<string, any> }) {
+  const userId = item.user_id ?? "?";
+  const botReady = item.bot_ready === true;
+  const paperBalance = item.paper_balance;
+  const totalPositions = item.total_positions ?? 0;
+  const settledPositions = item.settled_positions ?? 0;
+  const currentStreak = item.current_streak ?? 0;
+  const longestStreak = item.longest_streak ?? 0;
+  const milestones = item.milestones as Record<string, boolean> | null;
+
+  const milestoneDefs: { key: string; label: string }[] = [
+    { key: "m1", label: "First Steps" },
+    { key: "m2", label: "Getting Serious" },
+    { key: "m3", label: "Skin in the Game" },
+    { key: "m4", label: "Consistency" },
+    { key: "m5", label: "Data Rich" },
+    { key: "m6", label: "Bot Ready" },
+  ];
+
+  return (
+    <View style={d.card}>
+      <View style={{ padding: 14 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={d.cardTitle}>{userId}</Text>
+          <View style={[d.actionBadge, { backgroundColor: botReady ? "#22C55E20" : "#EAB30820" }]}>
+            <Text style={[d.actionBadgeText, { color: botReady ? "#22C55E" : "#EAB308" }]}>
+              {botReady ? "BOT READY" : "TRAINING"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[d.pricesRow, { marginTop: 12 }]}>
+          <View style={d.priceBox}>
+            <Text style={d.priceLabel}>BALANCE</Text>
+            <Text style={[d.priceValue, { color: "#22C55E", fontSize: 16 }]}>
+              ${paperBalance != null ? (paperBalance / 100).toFixed(2) : "100.00"}
+            </Text>
+          </View>
+          <View style={d.priceBox}>
+            <Text style={d.priceLabel}>POSITIONS</Text>
+            <Text style={[d.priceValue, { color: "#6366F1", fontSize: 16 }]}>
+              {settledPositions}/{totalPositions}
+            </Text>
+          </View>
+          <View style={d.priceBox}>
+            <Text style={d.priceLabel}>STREAK</Text>
+            <Text style={[d.priceValue, { color: "#EAB308", fontSize: 16 }]}>
+              {currentStreak}d
+            </Text>
+          </View>
+        </View>
+
+        {milestones && (
+          <View style={{ marginTop: 12, gap: 4 }}>
+            {milestoneDefs.map((ms) => {
+              const done = milestones[ms.key] === true;
+              return (
+                <View key={ms.key} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons
+                    name={done ? "checkmark-circle" : "ellipse-outline"}
+                    size={16}
+                    color={done ? "#22C55E" : "#334155"}
+                  />
+                  <Text style={{ color: done ? "#CBD5E1" : "#475569", fontSize: 12 }}>
+                    {ms.label}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ── Generic Row Card (fallback) ──
+
+function GenericRowCard({ item }: { item: Record<string, any> }) {
+  const keys = Object.keys(item).filter((k) => !k.includes("REDACTED"));
+  return (
+    <View style={d.card}>
+      <View style={{ padding: 14, gap: 4 }}>
+        {keys.slice(0, 6).map((k) => {
+          const val = item[k];
+          const display = typeof val === "object" ? JSON.stringify(val).slice(0, 60) : String(val).slice(0, 60);
+          return (
+            <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+              <Text style={{ color: "#64748B", fontSize: 11, fontWeight: "600", width: 80 }} numberOfLines={1}>{k}</Text>
+              <Text style={{ color: "#CBD5E1", fontSize: 11, flex: 1 }} numberOfLines={1}>{display}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ── Table Section ──
 
 const TABLE_META: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
   predictions: { label: "Predictions", icon: "analytics-outline", color: "#6366F1" },
   trading_logs: { label: "Trades", icon: "swap-horizontal-outline", color: "#22C55E" },
   market_snapshots: { label: "Snapshots", icon: "pulse-outline", color: "#3B82F6" },
+  integrations: { label: "Integrations", icon: "key-outline", color: "#F59E0B" },
+  tracked_positions: { label: "Tracked Positions", icon: "trending-up-outline", color: "#EC4899" },
+  user_progress: { label: "Bot Progress", icon: "rocket-outline", color: "#8B5CF6" },
 };
+
+function renderCard(tableName: string, item: Record<string, any>, i: number) {
+  switch (tableName) {
+    case "predictions": return <PredictionCard key={i} item={item} />;
+    case "trading_logs": return <TradeCard key={i} item={item} />;
+    case "market_snapshots": return <SnapshotCard key={i} item={item} />;
+    case "integrations": return <IntegrationCard key={i} item={item} />;
+    case "tracked_positions": return <TrackedPositionCard key={i} item={item} />;
+    case "user_progress": return <BotProgressCard key={i} item={item} />;
+    default: return <GenericRowCard key={i} item={item} />;
+  }
+}
 
 function TableSection({
   tableName,
@@ -366,11 +585,7 @@ function TableSection({
           {data.recent.length === 0 ? (
             <Text style={d.emptyText}>No items yet</Text>
           ) : (
-            data.recent.map((item, i) => {
-              if (tableName === "predictions") return <PredictionCard key={i} item={item} />;
-              if (tableName === "trading_logs") return <TradeCard key={i} item={item} />;
-              return <SnapshotCard key={i} item={item} />;
-            })
+            data.recent.map((item, i) => renderCard(tableName, item, i))
           )}
         </View>
       )}
@@ -523,7 +738,8 @@ export default function SettingsScreen() {
   };
 
   const totalItems = tables
-    ? tables.predictions.count + tables.trading_logs.count + tables.market_snapshots.count
+    ? tables.predictions.count + tables.trading_logs.count + tables.market_snapshots.count +
+      tables.integrations.count + tables.tracked_positions.count + tables.user_progress.count
     : 0;
 
   return (
@@ -545,8 +761,11 @@ export default function SettingsScreen() {
         ) : tables ? (
           <>
             <TableSection tableName="predictions" data={tables.predictions} />
+            <TableSection tableName="tracked_positions" data={tables.tracked_positions} />
             <TableSection tableName="trading_logs" data={tables.trading_logs} />
             <TableSection tableName="market_snapshots" data={tables.market_snapshots} />
+            <TableSection tableName="user_progress" data={tables.user_progress} />
+            <TableSection tableName="integrations" data={tables.integrations} />
           </>
         ) : (
           <Text style={d.emptyText}>Failed to load table data</Text>

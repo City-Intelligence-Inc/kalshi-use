@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Wallet, Link as LinkIcon, BarChart3 } from "lucide-react";
+import { Wallet, Link as LinkIcon, BarChart3, Filter } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import MarketCard from "@/components/MarketCard";
 import { getPortfolioBalance, getIntegrations, getMarkets } from "@/lib/api";
@@ -20,12 +20,28 @@ const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: "price_low", label: "Low" },
 ];
 
+const CATEGORY_COLORS: Record<string, string> = {
+  Politics: "#818CF8",
+  Elections: "#F472B6",
+  Economics: "#34D399",
+  Financials: "#FBBF24",
+  "Science and Technology": "#60A5FA",
+  "Climate and Weather": "#2DD4BF",
+  Entertainment: "#FB923C",
+  Sports: "#A78BFA",
+  Companies: "#F87171",
+  Health: "#4ADE80",
+  World: "#38BDF8",
+  Social: "#E879F9",
+};
+
 export default function DashboardPage() {
   const [portfolio, setPortfolio] = useState<AggregatedPortfolio | null>(null);
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [markets, setMarkets] = useState<KalshiMarket[]>([]);
   const [loadingMarkets, setLoadingMarkets] = useState(true);
   const [sort, setSort] = useState<SortOption>("volume");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
 
   const loadData = useCallback(async () => {
@@ -51,7 +67,23 @@ export default function DashboardPage() {
 
   const hasIntegrations = integrations.length > 0;
 
-  const sortedMarkets = [...markets].sort((a, b) => {
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    markets.forEach((m) => {
+      if (m.category) cats.add(m.category);
+    });
+    return Array.from(cats).sort();
+  }, [markets]);
+
+  const filteredMarkets = useMemo(
+    () =>
+      selectedCategory
+        ? markets.filter((m) => m.category === selectedCategory)
+        : markets,
+    [markets, selectedCategory]
+  );
+
+  const sortedMarkets = [...filteredMarkets].sort((a, b) => {
     switch (sort) {
       case "volume":
         return (b.volume_24h ?? 0) - (a.volume_24h ?? 0);
@@ -161,7 +193,7 @@ export default function DashboardPage() {
         <div className={styles.marketsSection}>
           <div className={styles.marketHeader}>
             <h2 className={styles.sectionTitle}>
-              Live Markets ({markets.length})
+              Live Markets ({filteredMarkets.length})
             </h2>
             <div className={styles.sortRow}>
               {SORT_OPTIONS.map((s) => (
@@ -175,6 +207,41 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+
+          {/* Category filters */}
+          {categories.length > 0 && (
+            <div className={styles.filterRow}>
+              <button
+                className={`${styles.filterChip} ${!selectedCategory ? styles.filterChipActive : ""}`}
+                onClick={() => setSelectedCategory(null)}
+              >
+                <Filter size={12} />
+                All
+              </button>
+              {categories.map((cat) => {
+                const active = selectedCategory === cat;
+                const accent = CATEGORY_COLORS[cat] ?? "#6366F1";
+                return (
+                  <button
+                    key={cat}
+                    className={styles.filterChip}
+                    style={active ? {
+                      backgroundColor: accent + "30",
+                      borderColor: accent + "60",
+                      color: accent,
+                    } : undefined}
+                    onClick={() => setSelectedCategory(active ? null : cat)}
+                  >
+                    <span
+                      className={styles.filterDot}
+                      style={{ backgroundColor: accent }}
+                    />
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {sortedMarkets.map((market, i) => (
             <MarketCard
               key={market.ticker + i}

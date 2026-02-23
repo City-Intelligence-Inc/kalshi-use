@@ -22,30 +22,104 @@
   cursor: pointer;
 }
 
-.emptyContainer {
+/* Stats */
+.statsRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.statCard {
+  flex: 1;
+  background: #111827;
+  border-radius: 12px;
+  padding: 14px;
+  border: 1px solid #1E293B;
+}
+
+.statLabel {
+  color: #64748B;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.statValue {
+  color: #FFFFFF;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+/* Section */
+.sectionTitle {
+  color: #94A3B8;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+/* Milestones */
+.milestone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #111827;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 6px;
+  border: 1px solid #1E293B;
+}
+
+.milestoneActive {
+  border-color: rgba(99, 102, 241, 0.19);
+}
+
+.milestoneText {
+  flex: 1;
+}
+
+.milestoneName {
+  color: #E2E8F0;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.done {
+  color: #22C55E;
+}
+
+.bar {
+  height: 4px;
+  background: #1E293B;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 4px;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.counter {
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Loading */
+.loadingContainer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 80px 40px;
-  text-align: center;
-}
-
-.emptyTitle {
-  color: #CBD5E1;
-  font-size: 18px;
-  font-weight: 600;
-  margin-top: 12px;
-}
-
-.emptySubtitle {
-  color: #64748B;
-  font-size: 14px;
-  margin-top: 6px;
+  padding: 30px 0;
+  gap: 8px;
 }
 
 .loadingText {
-  color: #94A3B8;
-  text-align: center;
-  padding: 40px 0;
+  color: #475569;
+  font-size: 14px;
 }

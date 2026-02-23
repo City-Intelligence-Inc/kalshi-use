@@ -135,6 +135,52 @@
   cursor: pointer;
 }
 
+/* ── Category Filters ── */
+
+.filterRow {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.filterRow::-webkit-scrollbar {
+  display: none;
+}
+
+.filterChip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #1E293B;
+  border: 1px solid #1F2937;
+  color: #64748B;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.filterChipActive {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: #6366F1;
+  color: #FFFFFF;
+}
+
+.filterDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
 /* ── Live Markets ── */
 
 .marketsSection {

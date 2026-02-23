@@ -1,5 +1,7 @@
 import {
   AggregatedPortfolio,
+  BotSignal,
+  BotStrategy,
   Integration,
   KalshiFill,
   KalshiMarket,
@@ -8,6 +10,7 @@ import {
   Prediction,
   PredictionUpdate,
   TrackedPosition,
+  UserProgress,
 } from "./types";
 
 const ENDPOINTS = {
@@ -268,7 +271,7 @@ export async function getFills(
 
 export async function acceptTrade(params: {
   user_id: string;
-  prediction_id: string;
+  prediction_id?: string;
   ticker: string;
   side: string;
   entry_price: number;
@@ -297,4 +300,40 @@ export async function closeTrackedPosition(
   return request(`/tracked-positions/${encodeURIComponent(positionId)}`, {
     method: "DELETE",
   });
+}
+
+// ── Bot Builder ──
+
+export async function getBotProgress(
+  userId: string
+): Promise<UserProgress> {
+  return request<UserProgress>(
+    `/bot/${encodeURIComponent(userId)}/progress`
+  );
+}
+
+export async function recordCheckIn(
+  userId: string
+): Promise<UserProgress> {
+  return request<UserProgress>(
+    `/bot/${encodeURIComponent(userId)}/check-in`,
+    { method: "POST" }
+  );
+}
+
+export async function getBotStrategy(
+  userId: string
+): Promise<BotStrategy> {
+  return request<BotStrategy>(
+    `/bot/${encodeURIComponent(userId)}/strategy`
+  );
+}
+
+export async function getBotSignals(
+  userId: string,
+  limit: number = 5
+): Promise<BotSignal[]> {
+  return request<BotSignal[]>(
+    `/bot/${encodeURIComponent(userId)}/signals?limit=${limit}`
+  );
 }

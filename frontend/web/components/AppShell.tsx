@@ -2,13 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, BarChart3, ScanLine, Activity, Settings } from "lucide-react";
+import { Home, BarChart3, ScanLine, Cpu, Settings } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/positions", label: "Positions", icon: BarChart3 },
   { href: "/predict", label: "Predict", icon: ScanLine },
-  { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/activity", label: "Bot", icon: Cpu },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

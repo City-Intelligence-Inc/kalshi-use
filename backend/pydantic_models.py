@@ -137,6 +137,10 @@ class Integration(BaseModel):
     email: Optional[str] = None
 
 
+class NotificationEmailUpdate(BaseModel):
+    email: str
+
+
 class PortfolioBalance(BaseModel):
     available_balance: float
     payout: float

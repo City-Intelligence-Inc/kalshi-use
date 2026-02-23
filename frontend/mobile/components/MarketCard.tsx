@@ -1,166 +1,186 @@
-import { View, Text, StyleSheet, Pressable, Platform } from "react-native";
+import { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { KalshiMarket } from "@/lib/types";
+import { acceptTrade } from "@/lib/api";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Politics: "#818CF8",
+  Elections: "#F472B6",
+  Economics: "#34D399",
+  Financials: "#FBBF24",
+  "Science and Technology": "#60A5FA",
+  "Climate and Weather": "#2DD4BF",
+  Entertainment: "#FB923C",
+  Sports: "#A78BFA",
+  Companies: "#F87171",
+  Health: "#4ADE80",
+  World: "#38BDF8",
+  Social: "#E879F9",
+};
 
 interface Props {
   market: KalshiMarket;
-  onPress?: (market: KalshiMarket) => void;
 }
 
-export default function MarketCard({ market, onPress }: Props) {
-  const yesPrice = market.yes_bid ?? market.last_price;
-  const noPrice = market.no_bid ?? (yesPrice != null ? 100 - yesPrice : null);
-  const delta =
-    market.last_price != null && market.previous_price != null
-      ? market.last_price - market.previous_price
-      : null;
+export default function MarketCard({ market }: Props) {
+  const [tracking, setTracking] = useState(false);
+  const [tracked, setTracked] = useState<string | null>(null);
+
+  const yesPrice = market.yes_bid ?? market.last_price ?? 0;
+  const noPrice = 100 - yesPrice;
+
+  const handleTrack = async (side: "yes" | "no") => {
+    setTracking(true);
+    try {
+      const price = side === "yes" ? yesPrice : noPrice;
+      await acceptTrade({
+        user_id: "demo-user-1",
+        ticker: market.ticker,
+        side,
+        entry_price: price,
+        title: market.title,
+      });
+      setTracked(side);
+      Alert.alert(
+        "Trade Tracked",
+        `Tracking ${side.toUpperCase()} on "${market.title}" at ${price}¢`,
+      );
+      setTimeout(() => setTracked(null), 2000);
+    } catch {
+      // silent
+    } finally {
+      setTracking(false);
+    }
+  };
 
   return (
-    <Pressable
-      style={styles.card}
-      onPress={() => onPress?.(market)}
-    >
-      {/* Title */}
+    <View style={styles.card}>
       <Text style={styles.title} numberOfLines={2}>
         {market.title}
       </Text>
 
-      {/* Ticker + category */}
-      <View style={styles.metaRow}>
-        <Text style={styles.ticker}>{market.ticker}</Text>
-        {market.category && (
-          <View style={styles.categoryPill}>
-            <Text style={styles.categoryText}>{market.category}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Price row */}
+      {/* YES / NO prices */}
       <View style={styles.priceRow}>
-        <View style={styles.priceBox}>
-          <Text style={styles.priceLabel}>YES</Text>
-          <Text style={[styles.priceValue, styles.yesColor]}>
-            {yesPrice != null ? `${yesPrice}¢` : "—"}
-          </Text>
-        </View>
-        <View style={styles.priceBox}>
-          <Text style={styles.priceLabel}>NO</Text>
-          <Text style={[styles.priceValue, styles.noColor]}>
-            {noPrice != null ? `${noPrice}¢` : "—"}
-          </Text>
-        </View>
-        <View style={styles.priceBox}>
-          <Text style={styles.priceLabel}>24H</Text>
-          {delta != null && delta !== 0 ? (
-            <View style={styles.deltaRow}>
-              <Ionicons
-                name={delta > 0 ? "arrow-up" : "arrow-down"}
-                size={12}
-                color={delta > 0 ? "#22C55E" : "#EF4444"}
-              />
-              <Text
-                style={[
-                  styles.priceValue,
-                  { color: delta > 0 ? "#22C55E" : "#EF4444" },
-                ]}
-              >
-                {Math.abs(delta)}¢
-              </Text>
-            </View>
-          ) : (
-            <Text style={[styles.priceValue, { color: "#475569" }]}>—</Text>
-          )}
-        </View>
+        <Text style={styles.yesPrice}>YES {yesPrice}¢</Text>
+        <Text style={styles.noPrice}>NO {noPrice}¢</Text>
       </View>
 
-      {/* Volume */}
-      {market.volume_24h != null && market.volume_24h > 0 && (
-        <Text style={styles.volume}>
-          {market.volume_24h.toLocaleString()} contracts today
-        </Text>
+      {/* Track buttons */}
+      {tracked ? (
+        <View style={styles.trackedRow}>
+          <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+          <Text style={styles.trackedText}>Tracked!</Text>
+        </View>
+      ) : (
+        <View style={styles.trackRow}>
+          <Pressable
+            style={[styles.trackBtn, styles.trackYes]}
+            onPress={() => handleTrack("yes")}
+            disabled={tracking}
+          >
+            {tracking ? (
+              <ActivityIndicator size="small" color="#22C55E" />
+            ) : (
+              <Text style={styles.trackYesText}>Track YES</Text>
+            )}
+          </Pressable>
+          <Pressable
+            style={[styles.trackBtn, styles.trackNo]}
+            onPress={() => handleTrack("no")}
+            disabled={tracking}
+          >
+            {tracking ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <Text style={styles.trackNoText}>Track NO</Text>
+            )}
+          </Pressable>
+        </View>
       )}
-    </Pressable>
+    </View>
   );
 }
+
+export { CATEGORY_COLORS };
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#111827",
     borderRadius: 14,
-    padding: 16,
+    padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#1E293B",
   },
   title: {
-    color: "#E2E8F0",
+    color: "#F1F5F9",
     fontSize: 15,
     fontWeight: "600",
-    lineHeight: 20,
-    marginBottom: 6,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  ticker: {
-    color: "#64748B",
-    fontSize: 11,
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  categoryPill: {
-    backgroundColor: "rgba(99,102,241,0.12)",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  categoryText: {
-    color: "#818CF8",
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
+    lineHeight: 21,
+    marginBottom: 10,
   },
   priceRow: {
     flexDirection: "row",
-    gap: 8,
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
-  priceBox: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  priceLabel: {
-    color: "#475569",
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  priceValue: {
-    color: "#CBD5E1",
-    fontSize: 16,
+  yesPrice: {
+    color: "#22C55E",
+    fontSize: 15,
     fontWeight: "800",
   },
-  yesColor: {
-    color: "#22C55E",
-  },
-  noColor: {
+  noPrice: {
     color: "#EF4444",
+    fontSize: 15,
+    fontWeight: "800",
   },
-  deltaRow: {
+  trackRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  trackBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  trackYes: {
+    borderColor: "#22C55E40",
+    backgroundColor: "rgba(34,197,94,0.06)",
+  },
+  trackNo: {
+    borderColor: "#EF444440",
+    backgroundColor: "rgba(239,68,68,0.06)",
+  },
+  trackYesText: {
+    color: "#22C55E",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  trackNoText: {
+    color: "#EF4444",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  trackedRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
   },
-  volume: {
-    color: "#475569",
-    fontSize: 11,
-    marginTop: 8,
-    textAlign: "center",
+  trackedText: {
+    color: "#22C55E",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

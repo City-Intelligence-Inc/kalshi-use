@@ -200,6 +200,9 @@ export interface TablesResponse {
   predictions: TableSummary;
   trading_logs: TableSummary;
   market_snapshots: TableSummary;
+  integrations: TableSummary;
+  tracked_positions: TableSummary;
+  user_progress: TableSummary;
 }
 
 export async function getDebugTables(): Promise<TablesResponse> {
@@ -248,6 +251,16 @@ export async function disconnectPlatform(
     `/integrations/${encodeURIComponent(userId)}/${encodeURIComponent(platform)}/${encodeURIComponent(accountType)}`,
     { method: "DELETE" }
   );
+}
+
+export async function updateNotificationEmail(
+  userId: string,
+  email: string
+): Promise<{ detail: string; email: string }> {
+  return request(`/integrations/${encodeURIComponent(userId)}/email`, {
+    method: "PATCH",
+    body: JSON.stringify({ email }),
+  });
 }
 
 // ── Portfolio ──

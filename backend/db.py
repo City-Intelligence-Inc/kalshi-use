@@ -30,6 +30,7 @@ SNAPSHOTS_TABLE_NAME = os.environ.get("SNAPSHOTS_TABLE_NAME", "kalshi-use-market
 PREDICTIONS_TABLE_NAME = os.environ.get("PREDICTIONS_TABLE_NAME", "kalshi-use-predictions")
 INTEGRATIONS_TABLE_NAME = os.environ.get("INTEGRATIONS_TABLE_NAME", "kalshi-use-integrations")
 TRACKED_POSITIONS_TABLE_NAME = os.environ.get("TRACKED_POSITIONS_TABLE_NAME", "kalshi-use-tracked-positions")
+USER_PROGRESS_TABLE_NAME = os.environ.get("USER_PROGRESS_TABLE_NAME", "kalshi-use-user-progress")
 S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME", "kalshi-use-images")
 LOCAL_IMAGE_DIR = Path("/tmp/kalshi-images")
 
@@ -39,6 +40,7 @@ snapshots_table = dynamodb.Table(SNAPSHOTS_TABLE_NAME)
 predictions_table = dynamodb.Table(PREDICTIONS_TABLE_NAME)
 integrations_table = dynamodb.Table(INTEGRATIONS_TABLE_NAME)
 tracked_positions_table = dynamodb.Table(TRACKED_POSITIONS_TABLE_NAME)
+user_progress_table = dynamodb.Table(USER_PROGRESS_TABLE_NAME)
 
 # S3 client — always attempt S3 in production (App Runner provides IAM role).
 # Fall back to local only when no AWS credentials are configured at all.
@@ -308,11 +310,68 @@ def get_integrations_by_user(user_id: str) -> list[dict]:
     return _decimals_to_floats(resp.get("Items", []))
 
 
+def update_integration_email(user_id: str, platform_account: str, email: str) -> bool:
+    integrations_table.update_item(
+        Key={"user_id": user_id, "platform_account": platform_account},
+        UpdateExpression="SET email = :e",
+        ExpressionAttributeValues={":e": email},
+    )
+    return True
+
+
 def delete_integration(user_id: str, platform_account: str) -> bool:
     integrations_table.delete_item(
         Key={"user_id": user_id, "platform_account": platform_account},
     )
     return True
+
+
+# ── Push Tokens ──
+
+
+def set_push_token_for_user(user_id: str, token: str) -> None:
+    """Store expo_push_token on the user's first integration record."""
+    integrations = get_integrations_by_user(user_id)
+    if integrations:
+        item = integrations[0]
+        integrations_table.update_item(
+            Key={"user_id": user_id, "platform_account": item["platform_account"]},
+            UpdateExpression="SET expo_push_token = :t",
+            ExpressionAttributeValues={":t": token},
+        )
+    else:
+        # No integration yet — store a standalone push-token record
+        integrations_table.put_item(Item={
+            "user_id": user_id,
+            "platform_account": "push_token",
+            "expo_push_token": token,
+        })
+
+
+def get_push_token_for_user(user_id: str) -> str | None:
+    """Return the expo_push_token for a user, if any."""
+    integrations = get_integrations_by_user(user_id)
+    for item in integrations:
+        token = item.get("expo_push_token")
+        if token:
+            return token
+    return None
+
+
+def get_all_users_with_active_positions() -> dict[str, list[dict]]:
+    """Scan tracked positions for status='active', grouped by user_id."""
+    resp = tracked_positions_table.scan(
+        FilterExpression="attribute_exists(#s) AND #s = :active",
+        ExpressionAttributeNames={"#s": "status"},
+        ExpressionAttributeValues={":active": "active"},
+    )
+    items = _decimals_to_floats(resp.get("Items", []))
+    grouped: dict[str, list[dict]] = {}
+    for pos in items:
+        uid = pos.get("user_id")
+        if uid:
+            grouped.setdefault(uid, []).append(pos)
+    return grouped
 
 
 # ── Tracked Positions ──
@@ -361,3 +420,38 @@ def update_tracked_position(position_id: str, updates: dict) -> dict | None:
 def delete_tracked_position(position_id: str) -> bool:
     tracked_positions_table.delete_item(Key={"position_id": position_id})
     return True
+
+
+# ── User Progress ──
+
+
+def get_user_progress(user_id: str) -> dict | None:
+    resp = user_progress_table.get_item(Key={"user_id": user_id})
+    item = resp.get("Item")
+    return _decimals_to_floats(item) if item else None
+
+
+def put_user_progress(progress: dict) -> dict:
+    user_progress_table.put_item(Item=_floats_to_decimals(progress))
+    return progress
+
+
+def update_user_progress(user_id: str, updates: dict) -> dict | None:
+    fields = {k: v for k, v in updates.items() if v is not None}
+    if not fields:
+        return get_user_progress(user_id)
+    expr_parts = []
+    expr_names = {}
+    expr_values = {}
+    for i, (key, val) in enumerate(fields.items()):
+        expr_parts.append(f"#{key} = :val{i}")
+        expr_names[f"#{key}"] = key
+        expr_values[f":val{i}"] = _floats_to_decimals(val)
+    resp = user_progress_table.update_item(
+        Key={"user_id": user_id},
+        UpdateExpression="SET " + ", ".join(expr_parts),
+        ExpressionAttributeNames=expr_names,
+        ExpressionAttributeValues=expr_values,
+        ReturnValues="ALL_NEW",
+    )
+    return _decimals_to_floats(resp.get("Attributes"))

@@ -1,6 +1,5 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import CenterTabButton from "../../components/CenterTabButton";
 
 export default function TabsLayout() {
   return (
@@ -40,17 +39,18 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="predict"
         options={{
-          title: "",
-          headerShown: false,
-          tabBarButton: (props) => <CenterTabButton {...props} />,
+          title: "Scan",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="camera-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="activity"
         options={{
-          title: "Activity",
+          title: "Bot",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="list-outline" size={size} color={color} />
+            <Ionicons name="hardware-chip-outline" size={size} color={color} />
           ),
         }}
       />

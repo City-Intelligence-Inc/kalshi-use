@@ -11,7 +11,7 @@ import {
 } from "./types";
 
 const ENDPOINTS = {
-  production: "https://cuxaxyzbcm.us-east-1.awsapprunner.com",
+  production: process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://cuxaxyzbcm.us-east-1.awsapprunner.com",
   local: "http://192.168.7.179:8000",
 } as const;
 
@@ -225,6 +225,16 @@ export async function disconnectPlatform(
     `/integrations/${encodeURIComponent(userId)}/${encodeURIComponent(platform)}/${encodeURIComponent(accountType)}`,
     { method: "DELETE" }
   );
+}
+
+export async function updateNotificationEmail(
+  userId: string,
+  email: string
+): Promise<{ detail: string; email: string }> {
+  return request(`/integrations/${encodeURIComponent(userId)}/email`, {
+    method: "PATCH",
+    body: JSON.stringify({ email }),
+  });
 }
 
 // ── Portfolio ──

@@ -10,6 +10,7 @@ from backend.db import (
     delete_integration,
     delete_tracked_position,
     get_integrations_by_user,
+    update_integration_email,
     get_prediction,
     get_predictions_by_user,
     get_presigned_url,
@@ -46,6 +47,7 @@ from backend.pydantic_models import (
     InputResponse,
     Integration,
     IntegrationConnect,
+    NotificationEmailUpdate,
     KalshiFill,
     KalshiPosition,
     ModelInfo,
@@ -186,6 +188,17 @@ def disconnect_integration(user_id: str, platform: str, account_type: str):
     platform_account = f"{platform}#{account_type}"
     delete_integration(user_id, platform_account)
     return {"detail": "Integration disconnected"}
+
+
+@router.patch("/integrations/{user_id}/email")
+def update_email(user_id: str, body: NotificationEmailUpdate):
+    """Update the notification email on all integrations for a user."""
+    integrations = get_integrations_by_user(user_id)
+    if not integrations:
+        raise HTTPException(status_code=404, detail="No integrations found")
+    for i in integrations:
+        update_integration_email(user_id, i["platform_account"], body.email)
+    return {"detail": "Email updated", "email": body.email}
 
 
 @router.get("/portfolio/{user_id}/balance", response_model=AggregatedPortfolio)
@@ -1013,24 +1026,33 @@ def debug_tables():
         table as trading_table,
         snapshots_table,
         predictions_table,
+        integrations_table,
+        tracked_positions_table,
+        user_progress_table,
+        _decimals_to_floats,
     )
 
-    def _scan_summary(tbl, sort_key: str | None = None, limit: int = 5):
-        from backend.db import _decimals_to_floats
-        # Get count
+    def _scan_summary(tbl, sort_key: str | None = None, limit: int = 5, redact: list[str] | None = None):
         count_resp = tbl.scan(Select="COUNT")
         count = count_resp.get("Count", 0)
-        # Get recent items
         scan_resp = tbl.scan(Limit=limit)
         items = _decimals_to_floats(scan_resp.get("Items", []))
         if sort_key:
             items.sort(key=lambda x: x.get(sort_key, ""), reverse=True)
+        if redact:
+            for item in items:
+                for key in redact:
+                    if key in item:
+                        item[key] = "***REDACTED***"
         return {"count": count, "recent": items[:limit]}
 
     return {
-        "predictions": _scan_summary(predictions_table, "created_at"),
+        "predictions": _scan_summary(predictions_table, "created_at", limit=10),
         "trading_logs": _scan_summary(trading_table, "created_at"),
         "market_snapshots": _scan_summary(snapshots_table, "scraped_at"),
+        "integrations": _scan_summary(integrations_table, redact=["encrypted_private_key", "api_key_id"]),
+        "tracked_positions": _scan_summary(tracked_positions_table, "created_at", limit=10),
+        "user_progress": _scan_summary(user_progress_table),
     }
 
 

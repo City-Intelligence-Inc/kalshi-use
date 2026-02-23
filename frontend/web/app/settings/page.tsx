@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   TrendingUp, ArrowLeftRight, Activity, Code, ChevronUp, ChevronDown,
-  PlusCircle,
+  PlusCircle, Mail, Pencil, Check, X,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import ConnectKalshiModal from "@/components/ConnectKalshiModal";
 import {
   getEndpoint, setEndpoint, EndpointKey,
-  getIntegrations, disconnectPlatform,
+  getIntegrations, disconnectPlatform, updateNotificationEmail,
   getDebugTables, getSystemPrompt, TablesResponse,
 } from "@/lib/api";
 import { Integration } from "@/lib/types";
@@ -187,6 +187,9 @@ export default function SettingsPage() {
   const [tables, setTables] = useState<TablesResponse | null>(null);
   const [tablesLoading, setTablesLoading] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [emailSaving, setEmailSaving] = useState(false);
 
   const loadIntegrations = useCallback(async () => {
     try {
@@ -240,6 +243,23 @@ export default function SettingsPage() {
   const openConnectModal = (accountType: "personal" | "agent") => {
     setModalAccountType(accountType);
     setModalVisible(true);
+  };
+
+  const currentEmail = integrations.find((i) => i.email)?.email ?? null;
+
+  const handleSaveEmail = async () => {
+    const trimmed = emailDraft.trim();
+    if (!trimmed || !trimmed.includes("@")) return;
+    setEmailSaving(true);
+    try {
+      await updateNotificationEmail(USER_ID, trimmed);
+      await loadIntegrations();
+      setEditingEmail(false);
+    } catch {
+      alert("Failed to update email.");
+    } finally {
+      setEmailSaving(false);
+    }
   };
 
   const totalItems = tables
@@ -317,6 +337,73 @@ export default function SettingsPage() {
         <p className={styles.integrationHint}>
           Generate your API key at kalshi.com/account/profile
         </p>
+      </div>
+
+      {/* Notifications */}
+      <div className={styles.section}>
+        <span className={styles.sectionTitle}>Notifications</span>
+        <div className={styles.notifCard}>
+          <div className={styles.notifIconBox}>
+            <Mail size={20} color="#6366F1" />
+          </div>
+          <div className={styles.notifInfo}>
+            <p className={styles.notifLabel}>Email Notifications</p>
+            <p className={styles.notifHint}>
+              Receive alerts when predictions complete and trades are accepted
+            </p>
+          </div>
+        </div>
+        <div className={styles.notifEmailRow}>
+          {editingEmail ? (
+            <>
+              <input
+                type="email"
+                className={styles.notifInput}
+                value={emailDraft}
+                onChange={(e) => setEmailDraft(e.target.value)}
+                placeholder="you@email.com"
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && handleSaveEmail()}
+              />
+              <button
+                className={styles.notifSaveBtn}
+                onClick={handleSaveEmail}
+                disabled={emailSaving}
+              >
+                <Check size={16} />
+              </button>
+              <button
+                className={styles.notifCancelBtn}
+                onClick={() => setEditingEmail(false)}
+              >
+                <X size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              <span className={styles.notifEmail}>
+                {currentEmail ?? "Not configured"}
+              </span>
+              {integrations.length > 0 && (
+                <button
+                  className={styles.notifEditBtn}
+                  onClick={() => {
+                    setEmailDraft(currentEmail ?? "");
+                    setEditingEmail(true);
+                  }}
+                >
+                  <Pencil size={14} />
+                  <span>{currentEmail ? "Edit" : "Add"}</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        {!integrations.length && (
+          <p className={styles.notifDisabled}>
+            Connect a Kalshi account first to enable notifications
+          </p>
+        )}
       </div>
 
       {/* Account */}

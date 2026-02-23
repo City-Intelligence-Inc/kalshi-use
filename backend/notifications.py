@@ -10,12 +10,8 @@ EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 # ── Mailgun config ──
 
 MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY", "")
-MAILGUN_DOMAIN = os.environ.get("MAILGUN_DOMAIN", "")
-MAILGUN_FROM = os.environ.get("MAILGUN_FROM", "")
-
-# Build from address with fallback
-if not MAILGUN_FROM and MAILGUN_DOMAIN:
-    MAILGUN_FROM = f"Kalshi Use <notifications@{MAILGUN_DOMAIN}>"
+MAILGUN_DOMAIN = os.environ.get("MAILGUN_DOMAIN", "ai.complete.city")
+MAILGUN_FROM = "Kalshi Use <arihant@ai.complete.city>"
 
 
 async def send_push(

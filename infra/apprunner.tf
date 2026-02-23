@@ -212,6 +212,8 @@ resource "aws_apprunner_service" "backend" {
           GEMINI_API_KEY           = var.gemini_api_key
           ENCRYPTION_KEY           = var.encryption_key
           TRACKED_POSITIONS_TABLE_NAME = aws_dynamodb_table.tracked_positions.name
+          MAILGUN_API_KEY             = var.mailgun_api_key
+          MAILGUN_DOMAIN              = var.mailgun_domain
         }
       }
     }

@@ -36,3 +36,16 @@ variable "encryption_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "mailgun_api_key" {
+  description = "Mailgun API key for sending email notifications"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "mailgun_domain" {
+  description = "Mailgun sending domain (e.g. ai.complete.city)"
+  type        = string
+  default     = ""
+}

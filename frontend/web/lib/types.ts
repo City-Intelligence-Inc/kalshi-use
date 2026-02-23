@@ -124,6 +124,7 @@ export interface Integration {
   status: string;
   connected_at: string;
   platform_account?: string;
+  email?: string;
 }
 
 export interface PlatformBalance {

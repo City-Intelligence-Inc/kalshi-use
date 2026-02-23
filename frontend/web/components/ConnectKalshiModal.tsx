@@ -21,6 +21,7 @@ export default function ConnectKalshiModal({
 }: Props) {
   const [apiKeyId, setApiKeyId] = useState("");
   const [privateKey, setPrivateKey] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,12 +32,24 @@ export default function ConnectKalshiModal({
       setError("Please enter both API Key ID and Private Key.");
       return;
     }
+    if (!email.trim() || !email.includes("@")) {
+      setError("Please enter a valid email for notifications.");
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
-      await connectPlatform(userId, apiKeyId.trim(), privateKey.trim(), "kalshi", accountType);
+      await connectPlatform(
+        userId,
+        apiKeyId.trim(),
+        privateKey.trim(),
+        "kalshi",
+        accountType,
+        email.trim()
+      );
       setApiKeyId("");
       setPrivateKey("");
+      setEmail("");
       onConnected();
       onClose();
     } catch (err: unknown) {
@@ -56,6 +69,17 @@ export default function ConnectKalshiModal({
         </h3>
 
         {error && <div className={styles.error}>{error}</div>}
+
+        <label className={styles.label}>Email (for notifications)</label>
+        <input
+          className={styles.input}
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          autoCapitalize="off"
+          autoCorrect="off"
+        />
 
         <label className={styles.label}>API Key ID</label>
         <input

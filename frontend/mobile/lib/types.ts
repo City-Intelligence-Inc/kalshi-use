@@ -124,6 +124,7 @@ export interface Integration {
   status: string; // "active" | "error"
   connected_at: string;
   platform_account?: string;
+  email?: string;
 }
 
 export interface PlatformBalance {
@@ -163,10 +164,27 @@ export interface KalshiFill {
 
 // ── Tracked Positions ──
 
+export interface MarketSnapshotAtEntry {
+  captured_at?: string;
+  yes_bid?: number;
+  yes_ask?: number;
+  no_bid?: number;
+  no_ask?: number;
+  last_price?: number;
+  previous_price?: number;
+  spread?: number;
+  volume?: number;
+  volume_24h?: number;
+  open_interest?: number;
+  category?: string;
+  event_title?: string;
+  market_status?: string;
+}
+
 export interface TrackedPosition {
   position_id: string;
   user_id: string;
-  prediction_id: string;
+  prediction_id?: string;
   ticker: string;
   side: string;
   entry_price: number;
@@ -182,6 +200,60 @@ export interface TrackedPosition {
   settlement_price?: number;
   realized_pnl?: number;
   settled_at?: string;
+  market_snapshot_at_entry?: MarketSnapshotAtEntry;
   created_at: string;
   updated_at?: string;
+}
+
+// ── Bot Builder ──
+
+export interface MilestoneStatus {
+  id: string;
+  name: string;
+  description: string;
+  target: number;
+  current: number;
+  completed: boolean;
+  completed_at?: string;
+}
+
+export interface UserProgress {
+  user_id: string;
+  milestones: MilestoneStatus[];
+  current_streak: number;
+  longest_streak: number;
+  last_check_in?: string;
+  total_check_ins: number;
+  bot_ready: boolean;
+  total_positions: number;
+  settled_positions: number;
+  paper_balance: number;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface BotStrategy {
+  user_id: string;
+  total_trades: number;
+  win_rate: number;
+  preferred_categories: { category: string; win_rate: number; count: number }[];
+  preferred_side: string;
+  preferred_entry_band: string;
+  avg_entry_price: number;
+  yes_win_rate?: number;
+  no_win_rate?: number;
+  generated_at: string;
+  insufficient_data?: boolean;
+}
+
+export interface BotSignal {
+  ticker: string;
+  title: string;
+  side: string;
+  confidence: number;
+  reasoning: string;
+  match_score: number;
+  category?: string;
+  current_price?: number;
+  entry_price_suggestion?: number;
 }

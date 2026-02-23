@@ -58,7 +58,7 @@ def call_openrouter_vision(
             {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
         ],
-        "max_tokens": 2048,
+        "max_tokens": 8192,
         "temperature": 0.2,
     }
 

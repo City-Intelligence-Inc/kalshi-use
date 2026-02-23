@@ -41,23 +41,48 @@ def _repair_truncated_json(text: str) -> dict | None:
     When an LLM response is cut off mid-JSON, try to salvage what we can
     by removing the truncated trailing portion and closing braces/brackets.
     """
-    # Find the last complete key-value pair by looking for the last complete line
-    # that ends with a comma, closing bracket, or value
     lines = text.split("\n")
 
     # Try progressively removing lines from the end until we get valid JSON
-    for trim in range(1, min(len(lines), 30)):
-        partial = "\n".join(lines[: len(lines) - trim])
+    for trim in range(0, min(len(lines), 30)):
+        if trim == 0:
+            partial = text
+        else:
+            partial = "\n".join(lines[: len(lines) - trim])
+
+        # Strip trailing whitespace and incomplete values
+        partial = partial.rstrip()
+
+        # Remove trailing incomplete key-value (e.g. `"key":` with no value)
+        partial = re.sub(r',?\s*"[^"]*"\s*:\s*$', '', partial)
+
         # Remove any trailing comma
         partial = partial.rstrip().rstrip(",")
+
+        # Remove trailing incomplete string (e.g. `"some text that got cut`)
+        # Only if the last quote is unmatched
+        stripped = partial.rstrip()
+        if stripped and stripped[-1] not in ('}', ']', '"', 'e', 'l', '0', '1', '2',
+                                             '3', '4', '5', '6', '7', '8', '9'):
+            # Likely a truncated value — remove the last key-value pair
+            partial = re.sub(r',?\s*"[^"]*"\s*:.*$', '', partial, flags=re.DOTALL)
+            partial = partial.rstrip().rstrip(",")
+
         # Count open/close braces and brackets
         open_braces = partial.count("{") - partial.count("}")
         open_brackets = partial.count("[") - partial.count("]")
+
+        if open_braces < 0 or open_brackets < 0:
+            continue
+
         # Close them
-        closing = "]" * max(0, open_brackets) + "}" * max(0, open_braces)
+        closing = "]" * open_brackets + "}" * open_braces
         try:
             result = json.loads(partial + closing)
-            logger.warning("Repaired truncated JSON (removed %d lines)", trim)
+            if trim > 0:
+                logger.warning("Repaired truncated JSON (removed %d lines)", trim)
+            else:
+                logger.warning("Repaired truncated JSON (cleaned trailing content)")
             return result
         except json.JSONDecodeError:
             continue
@@ -180,31 +205,30 @@ def parse_llm_response(raw_text: str) -> dict:
     try:
         result = json.loads(text)
     except json.JSONDecodeError:
-        # Try to extract JSON object from surrounding text
+        result = None
+
+        # Try to extract a complete JSON object from surrounding text
         match = re.search(r"\{[\s\S]*\}", text)
         if match:
             try:
                 result = json.loads(match.group())
             except json.JSONDecodeError:
-                # Try to repair truncated JSON by closing open braces/brackets
-                repaired = _repair_truncated_json(match.group())
-                if repaired:
-                    result = repaired
-                else:
-                    logger.error("Failed to parse LLM response as JSON: %s", text[:500])
-                    raise ValueError(f"Could not parse LLM response as JSON: {text[:200]}")
-        else:
-            # No closing brace — response may be entirely truncated
-            if text.lstrip().startswith("{"):
-                repaired = _repair_truncated_json(text)
-                if repaired:
-                    result = repaired
-                else:
-                    logger.error("Truncated JSON in LLM response: %s", text[:500])
-                    raise ValueError(f"No JSON object found in LLM response: {text[:200]}")
-            else:
-                logger.error("No JSON object found in LLM response: %s", text[:500])
-                raise ValueError(f"No JSON object found in LLM response: {text[:200]}")
+                # The regex matched but it's still invalid — try repair on the match
+                result = _repair_truncated_json(match.group())
+
+        # If regex didn't match or repair failed, try repair on the full text
+        if result is None and text.lstrip().startswith("{"):
+            result = _repair_truncated_json(text)
+
+        # Also try starting from the first { in case there's preamble text
+        if result is None:
+            brace_idx = text.find("{")
+            if brace_idx >= 0:
+                result = _repair_truncated_json(text[brace_idx:])
+
+        if result is None:
+            logger.error("Failed to parse LLM response as JSON: %s", text[:500])
+            raise ValueError(f"Could not parse LLM response as JSON: {text[:200]}")
 
     # Ensure required fields have defaults
     result.setdefault("ticker", "UNKNOWN")

@@ -31,6 +31,7 @@ export default function ConnectKalshiModal({
 }: Props) {
   const [apiKeyId, setApiKeyId] = useState("");
   const [privateKey, setPrivateKey] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleConnect = async () => {
@@ -38,12 +39,17 @@ export default function ConnectKalshiModal({
       Alert.alert("Missing fields", "Please enter both API Key ID and Private Key.");
       return;
     }
+    if (!email.trim() || !email.includes("@")) {
+      Alert.alert("Missing email", "Please enter a valid email for notifications.");
+      return;
+    }
 
     setLoading(true);
     try {
-      await connectPlatform(userId, apiKeyId.trim(), privateKey.trim(), "kalshi", accountType);
+      await connectPlatform(userId, apiKeyId.trim(), privateKey.trim(), "kalshi", accountType, email.trim());
       setApiKeyId("");
       setPrivateKey("");
+      setEmail("");
       onConnected();
       onClose();
     } catch (err: any) {
@@ -68,6 +74,18 @@ export default function ConnectKalshiModal({
             <Text style={styles.title}>
               Connect Kalshi ({accountType === "agent" ? "AI Agent" : "Personal"})
             </Text>
+
+            <Text style={styles.label}>Email (for notifications)</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              placeholderTextColor="#475569"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+            />
 
             <Text style={styles.label}>API Key ID</Text>
             <TextInput

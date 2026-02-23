@@ -18,16 +18,31 @@ from backend.db import (
     put_integration,
     put_prediction,
     put_tracked_position,
+    set_push_token_for_user,
     update_prediction,
     update_tracked_position,
     upload_image,
 )
-from backend.kalshi_api import enrich_prediction, fetch_market, fetch_markets, match_market
+from backend.bot_engine import (
+    derive_strategy,
+    generate_signals,
+    get_or_create_progress,
+    record_check_in,
+    record_position_tracked,
+)
+from backend.kalshi_api import enrich_prediction, fetch_event, fetch_events, fetch_market, fetch_markets, match_market
 from backend.models import get_model, list_models
-from backend.notifications import send_push
+from backend.notifications import (
+    send_email,
+    send_push,
+    _format_prediction_email,
+    _format_trade_accepted_email,
+)
 from backend.prediction_log import log_prediction
 from backend.pydantic_models import (
     AggregatedPortfolio,
+    BotSignal,
+    BotStrategy,
     InputResponse,
     Integration,
     IntegrationConnect,
@@ -37,8 +52,10 @@ from backend.pydantic_models import (
     OutputRequest,
     Prediction,
     PredictionUpdate,
+    PushTokenRegister,
     TrackedPosition,
     TrackedPositionCreate,
+    UserProgress,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,6 +80,16 @@ def _get_fernet():
     if not key:
         raise HTTPException(status_code=500, detail="Encryption key not configured")
     return Fernet(key.encode())
+
+
+def _get_user_email(user_id: str) -> str | None:
+    """Return the notification email stored on any integration for this user."""
+    integrations = get_integrations_by_user(user_id)
+    for i in integrations:
+        email = i.get("email")
+        if email:
+            return email
+    return None
 
 
 def _get_all_kalshi_clients(user_id: str):
@@ -118,6 +145,8 @@ def connect_integration(req: IntegrationConnect):
         "status": "active",
         "connected_at": now,
     }
+    if req.email:
+        integration["email"] = req.email
     put_integration(integration)
 
     return {
@@ -128,6 +157,7 @@ def connect_integration(req: IntegrationConnect):
         "status": "active",
         "connected_at": now,
         "platform_account": platform_account,
+        "email": req.email,
     }
 
 
@@ -144,6 +174,7 @@ def list_integrations(user_id: str):
             "status": i.get("status", "active"),
             "connected_at": i["connected_at"],
             "platform_account": i.get("platform_account"),
+            "email": i.get("email"),
         }
         for i in integrations
     ]
@@ -228,22 +259,32 @@ def list_markets(
     status: str = Query("open"),
     limit: int = Query(200, ge=1, le=1000),
 ):
-    """Browse live Kalshi markets (public, no auth). Cached 60s."""
-    all_markets = fetch_markets(status=status, limit=5000)
-    # Filter out zero-liquidity/parlay junk — keep markets with real activity
-    active = [
-        m for m in all_markets
-        if (m.get("volume_24h") or 0) > 0
-        or (m.get("open_interest") or 0) > 0
-        or (m.get("volume") or 0) > 0
-    ]
-    # Sort by 24h volume descending — most active markets first
-    active.sort(key=lambda m: (m.get("volume_24h") or 0), reverse=True)
+    """Browse live Kalshi markets via events (public, no auth). Cached 60s."""
+    events = fetch_events(status=status, limit=200)
+    # Extract individual markets from events
+    all_markets: list[dict] = []
+    for event in events:
+        event_title = event.get("title", "")
+        category = event.get("category", "")
+        for m in event.get("markets", []):
+            m["_event_title"] = event_title
+            m["category"] = category
+            all_markets.append(m)
+
+    # Sort by volume (24h first, fall back to total volume, then open interest)
+    all_markets.sort(
+        key=lambda m: (
+            (m.get("volume_24h") or 0) * 10000
+            + (m.get("volume") or 0)
+            + (m.get("open_interest") or 0)
+        ),
+        reverse=True,
+    )
     # Return a lightweight subset for the frontend
     return [
         {
             "ticker": m.get("ticker"),
-            "title": m.get("title"),
+            "title": m.get("title") or m.get("_event_title"),
             "event_ticker": m.get("event_ticker"),
             "status": m.get("status"),
             "yes_bid": m.get("yes_bid"),
@@ -258,8 +299,125 @@ def list_markets(
             "close_time": m.get("close_time"),
             "category": m.get("category"),
         }
-        for m in active[:limit]
+        for m in all_markets[:limit]
     ]
+
+
+_MARKET_ANALYSIS_PROMPT = """\
+You are a Kalshi prediction market strategist. Given live market data, output a trading recommendation.
+
+Return a JSON object with EXACTLY these fields:
+{
+  "strategy": "A single sentence: BUY YES/NO @ price — reason (max 15 words)",
+  "side": "yes" or "no",
+  "confidence": 0.0 to 1.0,
+  "entry_price": number (cents — the ask price you'd pay),
+  "thinking": "2-5 sentences of detailed reasoning, factors considered, and risk assessment"
+}
+
+Rules:
+- "strategy" must be ONE short actionable line a trader can glance at and act on
+- Examples: "BUY YES @ 4¢ — Shelton nomination unlikely, market overpricing at 96¢ NO"
+- Examples: "BUY NO @ 5¢ — Warsh is near-certain pick, 95¢ YES is fair"
+- Examples: "PASS — market is fairly priced, no edge"
+- If no edge exists (spread too tight, fair price), set side to the better side but say PASS in strategy
+- "thinking" is your detailed analysis — factors, data points, risk. This goes in a hidden dropdown.
+- Be concrete: reference the actual prices, volumes, and market context provided
+
+Return ONLY the JSON object.
+"""
+
+
+@router.post("/markets/{ticker}/analyze")
+def analyze_market(ticker: str, model: str = Query("gemini")):
+    """Run a quick strategy analysis on a live market. Text-only, no image."""
+    import os
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not set")
+
+    # Fetch live market data
+    market_data = enrich_prediction(ticker)
+    if market_data.get("status") != "found":
+        raise HTTPException(status_code=404, detail=f"Market {ticker} not found")
+
+    # Also get basic market info
+    market = fetch_market(ticker)
+    title = market.get("title", ticker) if market else ticker
+
+    # Build context string
+    context_lines = [
+        f"Market: {title}",
+        f"Ticker: {ticker}",
+        f"Status: {market_data.get('market_status', 'unknown')}",
+        f"YES bid/ask: {market_data.get('yes_bid')}¢ / {market_data.get('yes_ask')}¢",
+        f"NO bid/ask: {market_data.get('no_bid')}¢ / {market_data.get('no_ask')}¢",
+        f"Last price: {market_data.get('last_price')}¢",
+        f"Spread: {market_data.get('spread')}¢",
+        f"24h change: {market_data.get('price_delta')}¢",
+        f"Volume: {market_data.get('volume')}",
+        f"24h volume: {market_data.get('volume_24h')}",
+        f"Open interest: {market_data.get('open_interest')}",
+    ]
+    if market_data.get("event_title"):
+        context_lines.append(f"Event: {market_data['event_title']}")
+    if market_data.get("event_category"):
+        context_lines.append(f"Category: {market_data['event_category']}")
+
+    prompt = "Analyze this market and give me a trading strategy:\n\n" + "\n".join(context_lines)
+
+    # Call Gemini (text-only, no image)
+    from google import genai
+
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[prompt],
+        config=genai.types.GenerateContentConfig(
+            system_instruction=_MARKET_ANALYSIS_PROMPT,
+            max_output_tokens=8192,
+            temperature=0.3,
+        ),
+    )
+
+    raw_text = response.text
+    logger.info("Market analysis for %s: %s", ticker, raw_text[:300])
+
+    # Parse JSON response
+    import json
+    import re
+
+    text = raw_text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```\w*\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+        text = text.strip()
+
+    try:
+        result = json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{[\s\S]*\}", text)
+        if match:
+            result = json.loads(match.group())
+        else:
+            result = {
+                "strategy": f"Could not analyze {ticker}",
+                "side": "yes",
+                "confidence": 0.5,
+                "thinking": raw_text[:500],
+            }
+
+    result.setdefault("strategy", f"Analyze {ticker} manually")
+    result.setdefault("side", "yes")
+    result.setdefault("confidence", 0.5)
+    result.setdefault("thinking", "")
+    result.setdefault("entry_price", market_data.get("yes_ask"))
+    result["ticker"] = ticker
+    result["title"] = title
+    result["market_data"] = market_data
+
+    return result
 
 
 # ── Models ──
@@ -372,6 +530,17 @@ async def _run_model_background(
                 f"{ticker} — {side} ({confidence}%)",
                 data={"prediction_id": prediction_id},
             )
+
+        # Send email notification
+        try:
+            pred = get_prediction(prediction_id)
+            if pred:
+                user_email = _get_user_email(pred.get("user_id", ""))
+                if user_email:
+                    subj, text, html = _format_prediction_email(pred)
+                    await send_email(user_email, subj, text, html)
+        except Exception:
+            logger.exception("Failed to send email for prediction %s", prediction_id)
     except Exception as exc:
         logger.exception("Background model run failed for prediction %s: %s", prediction_id, exc)
         failed_at = datetime.now(timezone.utc).isoformat()
@@ -607,6 +776,16 @@ def list_predictions(user_id: str = Query(...)):
     return get_predictions_by_user(user_id)
 
 
+# ── Push Tokens ──
+
+
+@router.post("/push-token")
+def register_push_token(req: PushTokenRegister):
+    """Register an Expo push token for a user."""
+    set_push_token_for_user(req.user_id, req.expo_push_token)
+    return {"detail": "Push token registered"}
+
+
 # ── Tracked Positions ──
 
 
@@ -689,12 +868,41 @@ def _enrich_tracked_position(pos: dict) -> dict:
 
 @router.post("/tracked-positions", response_model=TrackedPosition)
 def create_tracked_position(req: TrackedPositionCreate):
-    """Accept a prediction — create a tracked position."""
+    """Accept a prediction — create a tracked position with market context."""
     now = datetime.now(timezone.utc).isoformat()
+    prediction_id = req.prediction_id or f"sim-{uuid.uuid4()}"
+
+    # Capture market context at decision time (for bot training data)
+    market_snapshot = None
+    if req.ticker:
+        try:
+            market = fetch_market(req.ticker)
+            if market:
+                evt_ticker = market.get("event_ticker")
+                event = fetch_event(evt_ticker) if evt_ticker else None
+                market_snapshot = {
+                    "captured_at": now,
+                    "yes_bid": market.get("yes_bid"),
+                    "yes_ask": market.get("yes_ask"),
+                    "no_bid": market.get("no_bid"),
+                    "no_ask": market.get("no_ask"),
+                    "last_price": market.get("last_price"),
+                    "previous_price": market.get("previous_price"),
+                    "spread": (market.get("yes_ask") or 0) - (market.get("yes_bid") or 0),
+                    "volume": market.get("volume"),
+                    "volume_24h": market.get("volume_24h"),
+                    "open_interest": market.get("open_interest"),
+                    "category": event.get("category") if event else None,
+                    "event_title": event.get("title") if event else None,
+                    "market_status": market.get("status"),
+                }
+        except Exception:
+            logger.exception("Failed to capture market snapshot for %s", req.ticker)
+
     position = {
         "position_id": str(uuid.uuid4()),
         "user_id": req.user_id,
-        "prediction_id": req.prediction_id,
+        "prediction_id": prediction_id,
         "ticker": req.ticker,
         "side": req.side,
         "entry_price": req.entry_price,
@@ -705,7 +913,27 @@ def create_tracked_position(req: TrackedPositionCreate):
         "status": "active",
         "created_at": now,
     }
+    if market_snapshot:
+        position["market_snapshot_at_entry"] = market_snapshot
     put_tracked_position(position)
+
+    # Update bot milestones
+    try:
+        record_position_tracked(req.user_id)
+    except Exception:
+        logger.exception("Failed to update progress for %s", req.user_id)
+
+    # Send email notification for trade accept
+    try:
+        user_email = _get_user_email(req.user_id)
+        if user_email:
+            subj, text, html = _format_trade_accepted_email(position)
+            asyncio.get_event_loop().create_task(
+                send_email(user_email, subj, text, html)
+            )
+    except Exception:
+        logger.exception("Failed to send trade-accepted email for %s", req.user_id)
+
     return position
 
 
@@ -743,6 +971,36 @@ def close_tracked_position(position_id: str):
 
     delete_tracked_position(position_id)
     return {"detail": "Position closed"}
+
+
+# ── Bot Builder ──
+
+
+@router.get("/bot/{user_id}/progress", response_model=UserProgress)
+def get_bot_progress(user_id: str):
+    """Get user's milestone progress, streaks, paper balance, and bot readiness."""
+    return get_or_create_progress(user_id)
+
+
+@router.post("/bot/{user_id}/check-in")
+def bot_check_in(user_id: str):
+    """Record a daily check-in (called when user taps notification)."""
+    return record_check_in(user_id)
+
+
+@router.get("/bot/{user_id}/strategy", response_model=BotStrategy)
+def get_bot_strategy(user_id: str):
+    """Get the bot's derived strategy based on user's trade history."""
+    return derive_strategy(user_id)
+
+
+@router.get("/bot/{user_id}/signals", response_model=list[BotSignal])
+def get_bot_signals(user_id: str, limit: int = Query(5, ge=1, le=10)):
+    """Get today's bot signal picks based on user's trading patterns."""
+    progress = get_or_create_progress(user_id)
+    if not progress.get("bot_ready"):
+        return []
+    return generate_signals(user_id, max_signals=limit)
 
 
 # ── Debug / Data Explorer ──

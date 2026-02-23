@@ -123,6 +123,7 @@ class IntegrationConnect(BaseModel):
     account_type: str = "personal"  # "personal" or "agent"
     api_key_id: str
     private_key_pem: str
+    email: Optional[str] = None  # notification email
 
 
 class Integration(BaseModel):
@@ -133,6 +134,7 @@ class Integration(BaseModel):
     status: str  # "active", "error"
     connected_at: str
     platform_account: Optional[str] = None  # composite key: "kalshi#personal"
+    email: Optional[str] = None
 
 
 class PortfolioBalance(BaseModel):
@@ -173,9 +175,14 @@ class KalshiFill(BaseModel):
 # ── Tracked Positions ──
 
 
+class PushTokenRegister(BaseModel):
+    user_id: str
+    expo_push_token: str
+
+
 class TrackedPositionCreate(BaseModel):
     user_id: str
-    prediction_id: str
+    prediction_id: Optional[str] = None
     ticker: str
     side: str  # "yes" or "no"
     entry_price: float  # cents
@@ -185,10 +192,27 @@ class TrackedPositionCreate(BaseModel):
     image_key: Optional[str] = None
 
 
+class MarketSnapshotAtEntry(BaseModel):
+    captured_at: Optional[str] = None
+    yes_bid: Optional[float] = None
+    yes_ask: Optional[float] = None
+    no_bid: Optional[float] = None
+    no_ask: Optional[float] = None
+    last_price: Optional[float] = None
+    previous_price: Optional[float] = None
+    spread: Optional[float] = None
+    volume: Optional[int] = None
+    volume_24h: Optional[int] = None
+    open_interest: Optional[int] = None
+    category: Optional[str] = None
+    event_title: Optional[str] = None
+    market_status: Optional[str] = None
+
+
 class TrackedPosition(BaseModel):
     position_id: str
     user_id: str
-    prediction_id: str
+    prediction_id: Optional[str] = None
     ticker: str
     side: str
     entry_price: float
@@ -204,5 +228,60 @@ class TrackedPosition(BaseModel):
     settlement_price: Optional[float] = None
     realized_pnl: Optional[float] = None
     settled_at: Optional[str] = None
+    market_snapshot_at_entry: Optional[MarketSnapshotAtEntry] = None
     created_at: str
     updated_at: Optional[str] = None
+
+
+# ── Bot Builder ──
+
+
+class MilestoneStatus(BaseModel):
+    id: str
+    name: str
+    description: str
+    target: int
+    current: int
+    completed: bool
+    completed_at: Optional[str] = None
+
+
+class UserProgress(BaseModel):
+    user_id: str
+    milestones: list[MilestoneStatus]
+    current_streak: int
+    longest_streak: int
+    last_check_in: Optional[str] = None
+    total_check_ins: int
+    bot_ready: bool
+    total_positions: int
+    settled_positions: int
+    paper_balance: float  # cents, starts at 10000 ($100)
+    created_at: str
+    updated_at: Optional[str] = None
+
+
+class BotStrategy(BaseModel):
+    user_id: str
+    total_trades: int
+    win_rate: float
+    preferred_categories: list[dict]
+    preferred_side: str
+    preferred_entry_band: str
+    avg_entry_price: float
+    yes_win_rate: Optional[float] = None
+    no_win_rate: Optional[float] = None
+    generated_at: str
+    insufficient_data: Optional[bool] = None
+
+
+class BotSignal(BaseModel):
+    ticker: str
+    title: str
+    side: str
+    confidence: float
+    reasoning: str
+    match_score: float
+    category: Optional[str] = None
+    current_price: Optional[float] = None
+    entry_price_suggestion: Optional[float] = None

@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Home, BarChart3, ScanLine, Activity, Settings } from "lucide-react";
-import { getToken } from "@/lib/auth";
 
 const navItems = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -15,14 +13,7 @@ const navItems = [
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
-
-  useEffect(() => {
-    if (!getToken()) {
-      router.replace("/");
-    }
-  }, [router]);
 
   return (
     <div className="app-shell">

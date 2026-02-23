@@ -192,7 +192,8 @@ export async function connectPlatform(
   apiKeyId: string,
   privateKeyPem: string,
   platform: string = "kalshi",
-  accountType: string = "personal"
+  accountType: string = "personal",
+  email?: string
 ): Promise<Integration> {
   return request<Integration>("/integrations/connect", {
     method: "POST",
@@ -202,6 +203,7 @@ export async function connectPlatform(
       account_type: accountType,
       api_key_id: apiKeyId,
       private_key_pem: privateKeyPem,
+      ...(email ? { email } : {}),
     }),
   });
 }

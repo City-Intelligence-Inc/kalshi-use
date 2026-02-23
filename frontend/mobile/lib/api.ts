@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   AggregatedPortfolio,
+  BotSignal,
+  BotStrategy,
   Integration,
   KalshiFill,
   KalshiMarket,
@@ -9,6 +11,7 @@ import {
   Prediction,
   PredictionUpdate,
   TrackedPosition,
+  UserProgress,
 } from "./types";
 
 const ENDPOINTS = {
@@ -85,6 +88,23 @@ export async function getModels(): Promise<ModelInfo[]> {
 
 export async function getMarkets(limit: number = 200): Promise<KalshiMarket[]> {
   return request<KalshiMarket[]>(`/markets?status=open&limit=${limit}`);
+}
+
+export interface MarketAnalysis {
+  ticker: string;
+  title: string;
+  strategy: string;
+  side: string;
+  confidence: number;
+  entry_price?: number;
+  thinking: string;
+  market_data?: Record<string, unknown>;
+}
+
+export async function analyzeMarket(ticker: string, model: string = "gemini"): Promise<MarketAnalysis> {
+  return request<MarketAnalysis>(`/markets/${ticker}/analyze?model=${model}`, {
+    method: "POST",
+  });
 }
 
 // ── Predictions ──
@@ -197,7 +217,8 @@ export async function connectPlatform(
   apiKeyId: string,
   privateKeyPem: string,
   platform: string = "kalshi",
-  accountType: string = "personal"
+  accountType: string = "personal",
+  email?: string
 ): Promise<Integration> {
   return request<Integration>("/integrations/connect", {
     method: "POST",
@@ -207,6 +228,7 @@ export async function connectPlatform(
       account_type: accountType,
       api_key_id: apiKeyId,
       private_key_pem: privateKeyPem,
+      ...(email ? { email } : {}),
     }),
   });
 }
@@ -259,7 +281,7 @@ export async function getFills(
 
 export async function acceptTrade(params: {
   user_id: string;
-  prediction_id: string;
+  prediction_id?: string;
   ticker: string;
   side: string;
   entry_price: number;
@@ -288,4 +310,49 @@ export async function closeTrackedPosition(
   return request(`/tracked-positions/${encodeURIComponent(positionId)}`, {
     method: "DELETE",
   });
+}
+
+// ── Push Tokens ──
+
+export async function registerPushToken(
+  userId: string,
+  expoPushToken: string
+): Promise<void> {
+  return request("/push-token", {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: userId,
+      expo_push_token: expoPushToken,
+    }),
+  });
+}
+
+// ── Bot Builder ──
+
+export async function getBotProgress(userId: string): Promise<UserProgress> {
+  return request<UserProgress>(
+    `/bot/${encodeURIComponent(userId)}/progress`
+  );
+}
+
+export async function recordCheckIn(userId: string): Promise<UserProgress> {
+  return request<UserProgress>(
+    `/bot/${encodeURIComponent(userId)}/check-in`,
+    { method: "POST" }
+  );
+}
+
+export async function getBotStrategy(userId: string): Promise<BotStrategy> {
+  return request<BotStrategy>(
+    `/bot/${encodeURIComponent(userId)}/strategy`
+  );
+}
+
+export async function getBotSignals(
+  userId: string,
+  limit: number = 5
+): Promise<BotSignal[]> {
+  return request<BotSignal[]>(
+    `/bot/${encodeURIComponent(userId)}/signals?limit=${limit}`
+  );
 }

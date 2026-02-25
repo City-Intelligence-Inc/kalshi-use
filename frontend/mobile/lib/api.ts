@@ -16,7 +16,7 @@ import {
 
 const ENDPOINTS = {
   production: "https://cuxaxyzbcm.us-east-1.awsapprunner.com",
-  local: "http://192.168.7.179:8000",
+  local: "https://cuxaxyzbcm.us-east-1.awsapprunner.com",
 } as const;
 
 export type EndpointKey = keyof typeof ENDPOINTS;

@@ -1,66 +1,78 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const PUSH_TOKEN_KEY = "expo_push_token";
 
 /**
  * Configure how notifications appear when the app is in the foreground.
+ * Without this, notifications are silently swallowed when the app is open.
  */
 export function setNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
       shouldPlaySound: true,
-      shouldSetBadge: false,
+      shouldSetBadge: true,
     }),
   });
 }
 
 /**
- * Request permissions and get the Expo push token.
- * Returns the token string or null if permissions denied / not a device.
+ * Request notification permissions (for local notifications).
+ * Returns true if granted, false otherwise.
  */
-export async function registerForPushNotifications(): Promise<string | null> {
-  // Check existing permissions
+export async function requestNotificationPermissions(): Promise<boolean> {
   const { status: existingStatus } =
     await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
   if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
+    const { status } = await Notifications.requestPermissionsAsync({
+      ios: {
+        allowAlert: true,
+        allowBadge: true,
+        allowSound: true,
+        allowCriticalAlerts: false,
+      },
+    });
     finalStatus = status;
   }
 
   if (finalStatus !== "granted") {
-    console.log("Push notification permission denied");
-    return null;
+    console.log("Notification permission denied");
+    return false;
   }
 
   // Android notification channel
   if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
+    await Notifications.setNotificationChannelAsync("trades", {
+      name: "Trade Alerts",
       importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#6366F1",
+      sound: "default",
     });
   }
 
-  const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: "445405bc-31fd-4157-b646-0171a9b57114",
-  });
-  const token = tokenData.data;
-
-  // Cache locally
-  await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
-
-  return token;
+  return true;
 }
 
 /**
- * Get the cached push token (if previously registered).
+ * Fire a local notification immediately. Shows on lock screen,
+ * notification center, and as a banner.
  */
-export async function getCachedPushToken(): Promise<string | null> {
-  return AsyncStorage.getItem(PUSH_TOKEN_KEY);
+export async function sendLocalNotification(
+  title: string,
+  body: string,
+  data?: Record<string, unknown>
+): Promise<void> {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: "default",
+      data: data ?? {},
+    },
+    trigger: null, // null = fire immediately
+  });
 }
 
 /**
@@ -70,14 +82,12 @@ export async function getCachedPushToken(): Promise<string | null> {
 export function addNotificationListeners(
   onTap?: (data: Record<string, unknown>) => void
 ): () => void {
-  // Fired when a notification is received while app is foregrounded
   const receivedSub = Notifications.addNotificationReceivedListener(
     (notification) => {
       console.log("Notification received:", notification.request.content.title);
     }
   );
 
-  // Fired when user taps a notification
   const responseSub =
     Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<

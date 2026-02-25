@@ -3,10 +3,10 @@ import { Stack, useRouter } from "expo-router";
 import { ShareIntentProvider } from "expo-share-intent";
 import {
   setNotificationHandler,
-  registerForPushNotifications,
+  requestNotificationPermissions,
   addNotificationListeners,
 } from "@/lib/notifications";
-import { registerPushToken, recordCheckIn } from "@/lib/api";
+import { recordCheckIn } from "@/lib/api";
 import "../global.css";
 
 // Configure foreground notification display
@@ -16,14 +16,8 @@ export default function RootLayout() {
   const router = useRouter();
 
   useEffect(() => {
-    // Register for push notifications
-    registerForPushNotifications().then((token) => {
-      if (token) {
-        registerPushToken("demo-user-1", token).catch((err) =>
-          console.warn("Failed to register push token:", err)
-        );
-      }
-    });
+    // Request notification permissions (local notifications)
+    requestNotificationPermissions();
 
     // Notification tap handler — record check-in and navigate
     const cleanup = addNotificationListeners(async (data) => {

@@ -5,11 +5,11 @@ import {
   StyleSheet,
   Pressable,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { KalshiMarket } from "@/lib/types";
 import { acceptTrade } from "@/lib/api";
+import { sendLocalNotification } from "@/lib/notifications";
 
 const CATEGORY_COLORS: Record<string, string> = {
   Politics: "#818CF8",
@@ -49,9 +49,10 @@ export default function MarketCard({ market }: Props) {
         title: market.title,
       });
       setTracked(side);
-      Alert.alert(
-        "Trade Tracked",
-        `Tracking ${side.toUpperCase()} on "${market.title}" at ${price}¢`,
+      sendLocalNotification(
+        `${side.toUpperCase()} @ ${price}¢ Tracked`,
+        market.title,
+        { type: "trade_tracked", ticker: market.ticker, side },
       );
       setTimeout(() => setTracked(null), 2000);
     } catch {

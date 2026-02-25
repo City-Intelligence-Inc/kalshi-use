@@ -60,7 +60,8 @@
           },
           "androidIntentFilters": ["image/*"]
         }
-      ]
+      ],
+      "./plugins/strip-push-entitlement.js"
     ],
     "experiments": {
       "typedRoutes": true
